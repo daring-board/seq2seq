@@ -153,3 +153,7 @@ rigel/public/model/*
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+
+*.pkl
+*.txt
+*/training_checkpoints
