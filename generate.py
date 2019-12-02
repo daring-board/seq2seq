@@ -57,26 +57,37 @@ if __name__ == '__main__':
     sp.load(mpath+'.model')
 
     count = 0
+    line1 = ''
     while True:
         print('Conversation: %d'%count)
-        line = input('> ')
-        if not line: break
-        parts = sp.encode_as_pieces(line)
-        parts = ['<start>'] + parts + ['<end>']
-        num_parts = [vocab[part] for part in parts]
-        inp = np.asarray(num_parts)
+        line2 = input('> ')
+        if not line2: break
+        parts1 = sp.encode_as_pieces(line1)
+        parts2 = sp.encode_as_pieces(line2)
+        parts1 = ['<start>'] + parts1 + ['<end>']
+        parts2 = ['<start>'] + parts2 + ['<end>']
+        num_parts1 = [vocab[part] for part in parts1]
+        num_parts2 = [vocab[part] for part in parts2]
+        inp1 = np.asarray(num_parts1)
+        inp2 = np.asarray(num_parts2)
 
-        in_sentence, ret_sentence = '', ''
-        ret, _ = execution.evaluate(inp, vocab, maxlen)
-        for n in inp:
+        in_sentence1, in_sentence2, ret_sentence = '', '', ''
+        ret, _ = execution.evaluate([inp1, inp2], vocab, maxlen)
+        for n in inp1:
             if n == 0: break
-            in_sentence += index[n]
-        in_sentence = in_sentence.replace('<start>', '').replace('<end>', '')
-        print('query: %s'%in_sentence[1:])
+            in_sentence1 += index[n]
+        in_sentence1 = in_sentence1.replace('<start>', '').replace('<end>', '')
+        print('prequery: %s'%in_sentence1[1:])
+        for n in inp2:
+            if n == 0: break
+            in_sentence2 += index[n]
+        in_sentence2 = in_sentence2.replace('<start>', '').replace('<end>', '')
+        print('query: %s'%in_sentence2[1:])
         for n in ret.numpy():
             if n == 0: break
             ret_sentence += index[n]
         ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
         print('response: %s'%ret_sentence[1:])
         print()
+        line1 = ret_sentence
         count += 1

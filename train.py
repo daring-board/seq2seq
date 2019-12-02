@@ -15,16 +15,19 @@ if __name__ == '__main__':
     vocab = {v: k for k, v in index.items()}
 
     X_train, Y_train, Z_train = [], [], []
-    for idx, l in enumerate(corpus[:-1]):
+    for idx, l in enumerate(corpus[:-2]):
         li0 = l.tolist()
         li1 = corpus[idx+1].tolist()
+        li2 = corpus[idx+2].tolist()
         X_train.append(li0)
         Y_train.append(li1)
+        Z_train.append(li2)
 
     rate = 0.8
     length = len(X_train)
     X_train, X_test = X_train[: int(length*rate)], X_train[int(length*rate):int(length*(rate+0.1))]
     Y_train, Y_test = Y_train[: int(length*rate)], Y_train[int(length*rate):int(length*(rate+0.1))]
+    Z_train, Z_test = Z_train[: int(length*rate)], Z_train[int(length*rate):int(length*(rate+0.1))]
     print(len(X_train))
     print(len(X_test))
     print(X_train[0])
@@ -68,9 +71,10 @@ if __name__ == '__main__':
         
         steps_per_epoch = int(len(X_train) / BATCH_SIZE)
         for batch in range(steps_per_epoch):
-            inp = np.asarray(X_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
-            trg = np.asarray(Y_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
-            execution.train_step(inp, trg)
+            inp1 = np.asarray(X_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
+            inp2 = np.asarray(Y_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
+            trg = np.asarray(Z_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
+            execution.train_step(inp1, inp2, trg)
             if batch % 50 == 0:
                 print ('Epoch {} Batch {} Loss {:.4f} Accuracy {:.4f}'.format(
                     epoch + 1, batch, train_loss.result(), train_accuracy.result()))
@@ -84,15 +88,21 @@ if __name__ == '__main__':
                                                         train_accuracy.result()))
 
         for idx in range(3):
-            in_sentence, ret_sentence = '', ''
-            inp = np.asarray(X_test[idx])
-            ret, _ = execution.evaluate(inp, vocab, maxlen)
-            for n in inp:
+            in1_sentence, in2_sentence, ret_sentence = '', '', ''
+            inp1 = np.asarray(X_test[idx])
+            inp2 = np.asarray(Y_test[idx])
+            ret, _ = execution.evaluate([inp1, inp2], vocab, maxlen)
+            for n in inp1:
                 if n == 0: break
-                in_sentence += index[n] + ' '
-            print(in_sentence)
+                in1_sentence += index[n] + ' '
+            print(in1_sentence)
+            for n in inp2:
+                if n == 0: break
+                in2_sentence += index[n] + ' '
+            print(in2_sentence)
             for n in ret.numpy():
                 if n == 0: break
                 ret_sentence += index[n] + ' '
             print(ret_sentence)
+            print()
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
