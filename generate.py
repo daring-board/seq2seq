@@ -3,15 +3,9 @@ import pickle
 import time
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.preprocessing import sequence
+import sentencepiece as spm
 
 from model import *
-
-import re
-from janome.tokenizer import Tokenizer
-from janome.analyzer import Analyzer
-from janome.charfilter import *
-from janome.tokenfilter import *
 
 def checkGPU():
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
@@ -22,60 +16,67 @@ def checkGPU():
     else:
         print("Not enough GPU hardware devices available")
 
-class Morph:
-    def __init__(self):
-        self.tokenizer = Tokenizer()
-
-    def analyze(self, text):
-        char_filters = [UnicodeNormalizeCharFilter()]
-        token_filters = [LowerCaseFilter(), ExtractAttributeFilter(att='surface')]
-        analyzer = Analyzer(char_filters, self.tokenizer, token_filters)
-        parts = [token for token in analyzer.analyze(text)]
-        return parts
-
 if __name__ == '__main__':
     checkGPU()
-    maxlen = 16
+    maxlen = 32
     with open('./data/dict.pkl', 'rb') as f:
         index = pickle.load(f)
     vocab = {v: k for k, v in index.items()}
 
     vocab_size = len(vocab) + 1
-    embedding_dim = 32
-    units = 256
-    BATCH_SIZE = 64
+    num_layers = 2
+    d_model = 64
+    dff = 512
+    num_heads = 8
+    dropout_rate = 0.1
 
-    encoder = Encoder(vocab_size, embedding_dim, units, BATCH_SIZE)
-    decoder = Decoder(vocab_size, embedding_dim, units, BATCH_SIZE)
+    learning_rate = CustomSchedule(d_model)
+    optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
-    optimizer = tf.keras.optimizers.Adam()
-    checkpoint_dir = './models/training_checkpoints'
-    checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
-    checkpoint = tf.train.Checkpoint(
-                    optimizer=optimizer,
-                    encoder=encoder,
-                    decoder=decoder
-                )
-    status = checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+    train_loss = tf.keras.metrics.Mean(name='train_loss')
+    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
 
-    morph = Morph()
+    transformer = Transformer(num_layers, d_model, num_heads, dff,
+                          vocab_size, vocab_size, 
+                          pe_input=vocab_size, 
+                          pe_target=vocab_size,
+                          rate=dropout_rate
+                    )
+    execution = Execution(transformer, loss_object, train_loss, train_accuracy, optimizer)
+
+    checkpoint_path = "./models/training_checkpoints/"
+    ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
+    ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
+    if ckpt_manager.latest_checkpoint:
+        ckpt.restore(ckpt_manager.latest_checkpoint)
+        print ('Latest checkpoint restored!!')
+
+    mpath = 'models/sentensepice'
+    sp = spm.SentencePieceProcessor()
+    sp.load(mpath+'.model')
 
     count = 0
     while True:
         print('Conversation: %d'%count)
         line = input('> ')
         if not line: break
-        parts = ['<start>'] + morph.analyze(line) + ['<end>']
+        parts = sp.encode_as_pieces(line)
+        parts = ['<start>'] + parts + ['<end>']
         num_parts = [vocab[part] for part in parts]
-        embs = sequence.pad_sequences([num_parts], maxlen=maxlen, padding='post', truncating='post')
-        inp = np.asarray(embs)
+        inp = np.asarray(num_parts)
 
-        in_sentence = ''
-        ret, nums, attention = evaluate(inp, vocab, index, units, maxlen, encoder, decoder)
-        for n in num_parts:
-            if n == 0: continue
-            else: in_sentence += index[n]
-        print('query: %s'%in_sentence[7:-5])
-        print('response: %s'%ret[:-6].replace(' ', ''))
+        in_sentence, ret_sentence = '', ''
+        ret, _ = execution.evaluate(inp, vocab, maxlen)
+        for n in inp:
+            if n == 0: break
+            in_sentence += index[n]
+        in_sentence = in_sentence.replace('<start>', '').replace('<end>', '')
+        print('query: %s'%in_sentence[1:])
+        for n in ret.numpy():
+            if n == 0: break
+            ret_sentence += index[n]
+        ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
+        print('response: %s'%ret_sentence[1:])
         print()
         count += 1

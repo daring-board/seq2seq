@@ -40,7 +40,6 @@ if __name__ == '__main__':
         for l in texts:
             sn = sp.encode_as_pieces(l)
             sn = ['<start>'] + sn + ['<end>']
-            print(sn)
             comp.append(sn)
 
     index, count = {}, {}
