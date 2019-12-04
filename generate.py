@@ -56,10 +56,9 @@ if __name__ == '__main__':
     sp = spm.SentencePieceProcessor()
     sp.load(mpath+'.model')
 
-    count = 0
     line1 = ''
     while True:
-        print('Conversation: %d'%count)
+        print('Conversation:')
         line2 = input('> ')
         if not line2: break
         parts1 = sp.encode_as_pieces(line1)
@@ -90,4 +89,3 @@ if __name__ == '__main__':
         print('response: %s'%ret_sentence[1:])
         print()
         line1 = ret_sentence
-        count += 1
