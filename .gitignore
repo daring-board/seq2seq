@@ -157,3 +157,4 @@ rigel/public/model/*
 *.pkl
 *.txt
 */training_checkpoints
+models/*
