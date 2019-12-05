@@ -38,13 +38,14 @@ if __name__ == '__main__':
     BATCH_SIZE = 1024
 
     learning_rate = CustomSchedule(d_model)
-    optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+    # optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+    optimizer = tf.keras.optimizers.Adam(1e-3, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
     train_loss = tf.keras.metrics.Mean(name='train_loss')
     train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
 
-    transformer = Transformer(num_layers, d_model, num_heads, dff,
+    transformer = TransformerVAE(num_layers, d_model, num_heads, dff,
                           vocab_size, vocab_size, 
                           pe_input=vocab_size, 
                           pe_target=vocab_size,
@@ -70,7 +71,7 @@ if __name__ == '__main__':
         for batch in range(steps_per_epoch):
             inp = np.asarray(X_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
             trg = np.asarray(Y_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
-            execution.train_step(inp, trg)
+            execution.train_step(inp, inp)
             if batch % 50 == 0:
                 print ('Epoch {} Batch {} Loss {:.4f} Accuracy {:.4f}'.format(
                     epoch + 1, batch, train_loss.result(), train_accuracy.result()))

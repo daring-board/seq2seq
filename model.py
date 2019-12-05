@@ -80,10 +80,8 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         
         scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
         scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
-        concat_attention = tf.reshape(scaled_attention, 
-                                    (batch_size, -1, self.d_model))  # (batch_size, seq_len_q, d_model)
+        concat_attention = tf.reshape(scaled_attention, (batch_size, -1, self.d_model))  # (batch_size, seq_len_q, d_model)
         output = self.dense(concat_attention)  # (batch_size, seq_len_q, d_model)
-            
         return output, attention_weights
 
 class EncoderLayer(tf.keras.layers.Layer):
@@ -175,33 +173,34 @@ class Decoder(tf.keras.layers.Layer):
         attention_weights['decoder_layer{}_block2'.format(i+1)] = block2
         return x, attention_weights
 
-class Transformer(tf.keras.Model):
+class TransformerVAE(tf.keras.Model):
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, 
                 target_vocab_size, pe_input, pe_target, rate=0.1):
-        super(Transformer, self).__init__()
+        super(TransformerVAE, self).__init__()
         self.encoder = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
         self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, rate)
+        self.mean_dense = tf.keras.layers.Dense(d_model, activation='relu')
+        self.logvar_dense = tf.keras.layers.Dense(d_model, activation='relu')
         self.final_layer = tf.keras.layers.Dense(target_vocab_size)
         
     def call(self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
         enc_output = self.encoder(inp, training, enc_padding_mask)  # (batch_size, inp_seq_len, d_model)
-        dec_output, attention_weights = self.decoder(tar, enc_output, training, look_ahead_mask, dec_padding_mask)
-        final_output = self.final_layer(dec_output)  # (batch_size, tar_seq_len, target_vocab_size)
-        return final_output, attention_weights
 
-class CustumTransformer(tf.keras.Model):
-    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, 
-                target_vocab_size, pe_input, pe_target, rate=0.1):
-        super(Transformer, self).__init__()
-        self.encoder = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
-        self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, rate)
-        self.final_layer = tf.keras.layers.Dense(target_vocab_size)
-        
-    def call(self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
-        enc_output = self.encoder(inp, training, enc_padding_mask)  # (batch_size, inp_seq_len, d_model)
-        dec_output, attention_weights = self.decoder(tar, enc_output, training, look_ahead_mask, dec_padding_mask)
-        final_output = self.final_layer(dec_output)  # (batch_size, tar_seq_len, target_vocab_size)
-        return final_output, attention_weights
+        self.mean = self.mean_dense(enc_output)
+        self.logvar = self.logvar_dense(enc_output)
+        z = self.sampling_z(self.mean, self.logvar)
+
+        dec_output, attention_weights = self.decoder(tar, z, training, look_ahead_mask, dec_padding_mask)
+        logit = self.final_layer(dec_output)  # (batch_size, tar_seq_len, target_vocab_size)
+        return logit, attention_weights
+
+    def sampling_z(self, mean, logvar):
+        eps = tf.random.normal(shape=tf.shape(mean))
+        z = eps * tf.exp(logvar * .5) + mean
+        return z
+
+    def get_mv(self):
+        return self.mean, self.logvar
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000):
@@ -237,7 +236,13 @@ class Execution():
         self.train_accuracy = train_accuracy
         self.optimizer = optimizer
 
-    def loss_function(self, real, pred):
+    def loss_function(self, real, pred, mean, logvar):
+        KL = -0.5 * tf.reduce_mean(tf.reduce_sum(1 + logvar) - mean**2 - tf.exp(-logvar), axis=1)
+        reconstruction = self.reconstruction(real, pred)
+        lower_bound = -KL + reconstruction
+        return lower_bound
+
+    def reconstruction(self, real, pred):
         mask = tf.math.logical_not(tf.math.equal(real, 0))
         loss_ = self.loss_object(real, pred)
         mask = tf.cast(mask, dtype=loss_.dtype)
@@ -256,7 +261,8 @@ class Execution():
                                         enc_padding_mask, 
                                         combined_mask, 
                                         dec_padding_mask)
-            loss = self.loss_function(tar_real, predictions)
+            mean, logvar = self.transformer.get_mv()
+            loss = self.loss_function(tar_real, predictions, mean, logvar)
         gradients = tape.gradient(loss, self.transformer.trainable_variables)    
         self.optimizer.apply_gradients(zip(gradients, self.transformer.trainable_variables))
         self.train_loss(loss)
