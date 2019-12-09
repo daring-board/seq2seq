@@ -47,7 +47,7 @@ if __name__ == '__main__':
     train_loss = tf.keras.metrics.Mean(name='train_loss')
     train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
 
-    transformer = Transformer(num_layers, d_model, num_heads, dff,
+    transformer = TransformerEX(num_layers, d_model, num_heads, dff,
                           vocab_size, vocab_size, 
                           pe_input=vocab_size, 
                           pe_target=vocab_size,
@@ -106,3 +106,4 @@ if __name__ == '__main__':
             print(ret_sentence)
             print()
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
+    tf.saved_model.save(execution, 'models/latest')

@@ -175,23 +175,38 @@ class Decoder(tf.keras.layers.Layer):
         attention_weights['decoder_layer{}_block2'.format(i+1)] = block2
         return x, attention_weights
 
+class TransformerEX(tf.keras.Model):
+    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, 
+                target_vocab_size, pe_input, pe_target, rate=0.1):
+        super(TransformerEX, self).__init__()
+        self.encoder1 = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
+        self.encoder2 = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
+        self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, rate)
+        self.concat = tf.keras.layers.Concatenate()
+        self.final_layer = tf.keras.layers.Dense(target_vocab_size)
+
+    def __call__(self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
+        enc_output1 = self.encoder1(inp[0], training, enc_padding_mask[0])  # (batch_size, inp_seq_len, d_model)
+        enc_output2 = self.encoder2(inp[1], training, enc_padding_mask[1])  # (batch_size, inp_seq_len, d_model)
+        dec_output1, attention_weights1 = self.decoder(tar, enc_output1, training, look_ahead_mask[0], dec_padding_mask[0])
+        dec_output2, attention_weights2 = self.decoder(tar, enc_output2, training, look_ahead_mask[1], dec_padding_mask[1])
+        dec_output = self.concat([dec_output1, dec_output2])
+        final_output = self.final_layer(dec_output)  # (batch_size, tar_seq_len, target_vocab_size)
+        return final_output, [attention_weights1, attention_weights2]
+
 class Transformer(tf.keras.Model):
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, 
                 target_vocab_size, pe_input, pe_target, rate=0.1):
         super(Transformer, self).__init__()
         self.encoder = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
         self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, rate)
-        self.concat = tf.keras.layers.Concatenate()
         self.final_layer = tf.keras.layers.Dense(target_vocab_size)
-        
-    def call(self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
-        enc_output1 = self.encoder(inp[0], training, enc_padding_mask[0])  # (batch_size, inp_seq_len, d_model)
-        enc_output2 = self.encoder(inp[1], training, enc_padding_mask[1])  # (batch_size, inp_seq_len, d_model)
-        dec_output1, attention_weights1 = self.decoder(tar, enc_output1, training, look_ahead_mask[0], dec_padding_mask[0])
-        dec_output2, attention_weights2 = self.decoder(tar, enc_output2, training, look_ahead_mask[1], dec_padding_mask[1])
-        dec_output = self.concat([dec_output1, dec_output2])
+
+    def __call__(self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
+        enc_output = self.encoder(inp, training, enc_padding_mask)  # (batch_size, inp_seq_len, d_model)
+        dec_output, attention_weights = self.decoder(tar, enc_output, training, look_ahead_mask, dec_padding_mask)
         final_output = self.final_layer(dec_output)  # (batch_size, tar_seq_len, target_vocab_size)
-        return final_output, [attention_weights1, attention_weights2]
+        return final_output, attention_weights
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000):
@@ -214,7 +229,7 @@ def create_masks(inp, tar):
     return enc_padding_mask, combined_mask, dec_padding_mask
 
 
-class Execution():
+class Execution(tf.Module):
     train_step_signature = [
         tf.TensorSpec(shape=(None, None), dtype=tf.int64),
         tf.TensorSpec(shape=(None, None), dtype=tf.int64),
@@ -270,12 +285,7 @@ class Execution():
             enc_padding_mask = [enc_padding_mask1, enc_padding_mask2]
             combined_mask = [combined_mask1, combined_mask2]
             dec_padding_mask = [dec_padding_mask1, dec_padding_mask2]
-            predictions, attention_weights = self.transformer(encoder_input, 
-                                                        output,
-                                                        False,
-                                                        enc_padding_mask,
-                                                        combined_mask,
-                                                        dec_padding_mask)
+            predictions, attention_weights = self.transformer(encoder_input, output, False, enc_padding_mask, combined_mask, dec_padding_mask)
             predictions = predictions[: ,-1:, :]  # (batch_size, 1, vocab_size)
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
             if predicted_id == vocab['<end>']:
