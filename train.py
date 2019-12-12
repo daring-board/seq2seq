@@ -33,12 +33,12 @@ if __name__ == '__main__':
     print(X_train[0])
 
     vocab_size = len(vocab) + 1
-    num_layers = 2
-    d_model = 64
+    num_layers = 4
+    d_model = 128
     dff = 512
     num_heads = 8
     dropout_rate = 0.1
-    BATCH_SIZE = 1024
+    BATCH_SIZE = 512
 
     learning_rate = CustomSchedule(d_model)
     optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
@@ -62,7 +62,7 @@ if __name__ == '__main__':
         ckpt.restore(ckpt_manager.latest_checkpoint)
         print ('Latest checkpoint restored!!')
 
-    EPOCHS = 150
+    EPOCHS = 50
     for epoch in range(EPOCHS):
         start = time.time()
         
