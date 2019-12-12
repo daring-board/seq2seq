@@ -1,4 +1,4 @@
-import os
+import os, sys
 import pickle
 import time
 import numpy as np
@@ -55,11 +55,13 @@ if __name__ == '__main__':
         start = time.time()
                 
         steps_per_epoch = int(len(X_train) / BATCH_SIZE)
+        print('BATCH: ')
+        print(steps_per_epoch)
         for batch in range(steps_per_epoch):
-            print('BATCH: %d'%batch)
+            sys.stdout.write('\r{}'.format(batch))
             inp = np.asarray(X_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
             trg = np.asarray(Y_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
-            model.fit([inp, trg[:, :-1]], trg[:, 1:], epochs=1)
+            model.fit([inp, trg[:, :-1]], trg[:, 1:], epochs=1, verbose=0)
 
         for idx in range(3):
             in_sentence, ret_sentence = '', ''
