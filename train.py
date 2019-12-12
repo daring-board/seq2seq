@@ -93,15 +93,15 @@ if __name__ == '__main__':
             inp2 = np.asarray(Y_test[idx])
             ret, _ = execution.evaluate([inp1, inp2], vocab, maxlen)
             for n in inp1:
-                if n == 0: break
+                if n == vocab['<end>']: break
                 in1_sentence += index[n] + ' '
             print(in1_sentence)
             for n in inp2:
-                if n == 0: break
+                if n == vocab['<end>']: break
                 in2_sentence += index[n] + ' '
             print(in2_sentence)
             for n in ret.numpy():
-                if n == 0: break
+                if n == vocab['<end>']: break
                 ret_sentence += index[n] + ' '
             print(ret_sentence)
             print()

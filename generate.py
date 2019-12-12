@@ -74,17 +74,17 @@ if __name__ == '__main__':
         in_sentence1, in_sentence2, ret_sentence = '', '', ''
         ret, _ = execution.evaluate([inp1, inp2], vocab, maxlen)
         for n in inp1:
-            if n == 0: break
+            if n == vocab['<end>']: break
             in_sentence1 += index[n]
         in_sentence1 = in_sentence1.replace('<start>', '').replace('<end>', '')
         print('prequery: %s'%in_sentence1[1:])
         for n in inp2:
-            if n == 0: break
+            if n == vocab['<end>']: break
             in_sentence2 += index[n]
         in_sentence2 = in_sentence2.replace('<start>', '').replace('<end>', '')
         print('query: %s'%in_sentence2[1:])
         for n in ret.numpy():
-            if n == 0: break
+            if n == vocab['<end>']: break
             ret_sentence += index[n]
         ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
         print('response: %s'%ret_sentence[1:])
