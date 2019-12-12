@@ -29,6 +29,14 @@ class PositionalEncoding(tf.keras.layers.Layer):
     def call(self, inputs):
         return inputs + self.pos_encoding[:, :tf.shape(inputs)[1], :]
 
+    def get_config(self):
+
+        config = super().get_config().copy()
+        config.update({
+            'pos_encoding': self.pos_encoding,
+        })
+        return config
+
 def create_padding_mask(x):
     mask = tf.cast(tf.math.equal(x, 0), tf.float32)
     # (batch_size, 1, 1, sequence length)
@@ -94,6 +102,20 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         # final linear layer
         outputs = self.dense(concat_attention)
         return outputs
+
+    def get_config(self):
+
+        config = super().get_config().copy()
+        config.update({
+            'num_heads': self.num_heads,
+            'd_model': self.d_model,
+            'depth': self.depth,
+            'query_dense': self.query_dense,
+            'key_dense': self.key_dense,
+            'value_dense': self.value_dense,
+            'dense': self.dense,
+        })
+        return config
 
 def encoder_layer(units, d_model, num_heads, dropout, name="encoder_layer"):
     inputs = tf.keras.Input(shape=(None, d_model), name="inputs")
@@ -198,7 +220,8 @@ def transformer(vocab_size, num_layers, units, d_model, num_heads, dropout, name
     return tf.keras.Model(inputs=[inputs, dec_inputs], outputs=outputs, name=name)
 
 class Functions():
-    def __init__(self, loss_object, maxlen, vocab):
+    def __init__(self, model, loss_object, maxlen, vocab):
+        self.model = model
         self.loss_object = loss_object
         self.maxlen = maxlen
         self.vocab = vocab
@@ -215,11 +238,11 @@ class Functions():
         accuracy = tf.keras.metrics.sparse_categorical_accuracy(y_true, y_pred)
         return accuracy
 
-    def evaluate(sentence):
-        output = tf.expand_dims('<start>', 0)
+    def evaluate(self, sentence):
+        output = tf.expand_dims([self.vocab['<start>']], 0)
 
         for i in range(self.maxlen):
-            predictions = self.transformer(inputs=[sentence, output], training=False)
+            predictions = self.model([sentence, output], training=False)
 
             predictions = predictions[:, -1:, :]
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
@@ -229,7 +252,7 @@ class Functions():
         return tf.squeeze(output, axis=0)
 
 
-    def predict(sentence):
+    def predict(self, sentence):
         prediction = evaluate(sentence)
 
         predicted_sentence = tokenizer.decode([i for i in prediction if i < tokenizer.vocab_size])

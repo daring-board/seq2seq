@@ -50,7 +50,7 @@ if __name__ == '__main__':
                 count[t] = 0
             count[t] += 1
     for idx, k in enumerate(index):
-        index[k] = idx + 1
+        index[k] = idx
     vocab_size = len(index) + 1
     print(vocab_size)
     with open('data/dict.pkl', 'wb') as f:
@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     maxlen = 32
     corpus = [[index[t] for t in l] for l in comp]
-    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='post')
+    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='post', value=index['<end>'])
     print(corpus[0])
     with open('data/corpus.pkl', 'wb') as f:
         pickle.dump(corpus, f)
