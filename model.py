@@ -300,3 +300,23 @@ class Execution(tf.Module):
             output = tf.concat([output, predicted_id], axis=-1)
         return tf.squeeze(output, axis=0), attention_weights
 
+def generate(inp_sentence, vocab, maxlen, model):
+    encoder_input1 = tf.expand_dims(inp_sentence[0], 0)
+    encoder_input2 = tf.expand_dims(inp_sentence[1], 0)
+    encoder_input = [encoder_input1, encoder_input2]
+    decoder_input = np.asarray([vocab['<start>']])
+    output = tf.expand_dims(decoder_input, 0)
+        
+    for i in range(maxlen):
+        enc_padding_mask1, combined_mask1, dec_padding_mask1 = create_masks(encoder_input1, output)
+        enc_padding_mask2, combined_mask2, dec_padding_mask2 = create_masks(encoder_input2, output)
+        enc_padding_mask = [enc_padding_mask1, enc_padding_mask2]
+        combined_mask = [combined_mask1, combined_mask2]
+        dec_padding_mask = [dec_padding_mask1, dec_padding_mask2]
+        predictions, attention_weights = model(encoder_input, output, False, enc_padding_mask, combined_mask, dec_padding_mask)
+        predictions = predictions[: ,-1:, :]  # (batch_size, 1, vocab_size)
+        predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
+        if predicted_id == vocab['<end>']:
+            return tf.squeeze(output, axis=0), attention_weights
+        output = tf.concat([output, predicted_id], axis=-1)
+    return tf.squeeze(output, axis=0), attention_weights
