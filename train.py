@@ -1,4 +1,3 @@
-
 import os
 import pickle
 import time
@@ -34,7 +33,7 @@ if __name__ == '__main__':
     print(X_train[0])
 
     vocab_size = len(vocab) + 1
-    num_layers = 2
+    num_layers = 3
     d_model = 64
     dff = 256
     num_heads = 8
@@ -63,7 +62,7 @@ if __name__ == '__main__':
         ckpt.restore(ckpt_manager.latest_checkpoint)
         print ('Latest checkpoint restored!!')
 
-    EPOCHS = 150
+    EPOCHS = 300
     for epoch in range(EPOCHS):
         start = time.time()
         

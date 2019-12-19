@@ -24,7 +24,7 @@ if __name__ == '__main__':
     vocab = {v: k for k, v in index.items()}
 
     vocab_size = len(vocab) + 1
-    num_layers = 2
+    num_layers = 3
     d_model = 64
     dff = 256
     num_heads = 8
