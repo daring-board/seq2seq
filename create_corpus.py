@@ -4,13 +4,13 @@ import numpy as np
 import sentencepiece as spm
 
 if __name__ == '__main__':
-    f_name = 'org_data.txt'
-    # f_name = 'full_conv.txt'
+    # f_name = 'org_data.txt'
+    f_name = 'full_conv.txt'
     path = 'data/'+f_name
     texts = [l.strip() for l in open(path, 'r', encoding='utf8') if l!='\n']
 
     sp = spm.SentencePieceProcessor()
-    sp.Load('./bert_model/wiki-ja.model')
+    sp.Load('./bert_model/japanese/wiki-ja.model')
 
     maxlen = 64
     corpus, labels , input_segment = [], [], []
@@ -50,7 +50,7 @@ if __name__ == '__main__':
         for j in range(length, length + len(t_list)):
             tmp[j] = sp.piece_to_id(t_list[j - length])
         
-        # tokens = [tokens[idx] if tmp[idx] == mask_id else 0 for idx in range(len(tokens))]
+        tokens = [tokens[idx] if tmp[idx] == mask_id else 0 for idx in range(len(tokens))]
         labels.append(tokens)
         corpus.append(tmp)
         input_segment.append(segment)
