@@ -158,3 +158,4 @@ rigel/public/model/*
 *.txt
 */training_checkpoints
 models/*
+bert_model/*

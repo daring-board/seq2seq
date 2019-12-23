@@ -69,7 +69,7 @@ if __name__ == '__main__':
     print('Distributed')
     out_idx2in_idx = {val: key for key, val in in_idx2out_idx.items()}
     mask = start
-    for l in range(12@0):
+    for l in range(120):
         print(mask)
         text[mask] = mask_id
         predict = model.predict([np.array([text]), np.array([seg_ids])])
@@ -78,7 +78,7 @@ if __name__ == '__main__':
             mask += 1
             continue
         if predict[mask] == mask_id:
-            mask += 1
+            random.randint(1, vocab_size)
             continue
         text[mask] = out_idx2in_idx[predict[mask]]
         print(text)
