@@ -57,6 +57,7 @@ if __name__ == '__main__':
 
     vcb2idx = {key: idx for idx, key in enumerate(output_vocab.keys())}
     output_vocab = {idx: key for idx, key in enumerate(output_vocab.keys())}
+    in_idx2out_idx = {sp.piece_to_id(val): key for key, val in output_vocab.items()}
 
     tmps = []
     for label in labels:
@@ -77,4 +78,4 @@ if __name__ == '__main__':
         pickle.dump(input_segment, f)
     print(len(output_vocab))
     pickle.dump(output_vocab, open('data/output_vocab.pkl', 'wb'))
-    
+    pickle.dump(in_idx2out_idx, open('data/in_idx2out_idx.pkl', 'wb'))

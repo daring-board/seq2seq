@@ -45,7 +45,7 @@ if __name__ == '__main__':
         steps_per_epoch=int(length*rate / BATCH_SIZE),
         epochs=EPOCH
     )
-    model.save('bert_finetune.h5')
+    model.save('./models/bert_finetune.h5')
 
     x = model.predict([np.array([corpus[0]]), np.array([segment[0]])])
     ret = []

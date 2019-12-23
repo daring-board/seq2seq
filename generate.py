@@ -1,92 +1,93 @@
 import os
 import pickle
 import time
+import random
 import numpy as np
-import tensorflow as tf
+import keras
+from keras_bert import get_custom_objects
 import sentencepiece as spm
 
-from model import *
-
-def checkGPU():
-    physical_devices = tf.config.experimental.list_physical_devices('GPU')
-    if len(physical_devices) > 0:
-        for k in range(len(physical_devices)):
-            tf.config.experimental.set_memory_growth(physical_devices[k], True)
-            print('memory growth:', tf.config.experimental.get_memory_growth(physical_devices[k]))
-    else:
-        print("Not enough GPU hardware devices available")
-
 if __name__ == '__main__':
-    checkGPU()
+    root_path = './bert_model/japanese/'
     maxlen = 32
-    with open('./data/dict.pkl', 'rb') as f:
-        index = pickle.load(f)
-    vocab = {v: k for k, v in index.items()}
-
-    vocab_size = len(vocab) + 1
-    num_layers = 3
-    d_model = 64
-    dff = 256
-    num_heads = 8
-    dropout_rate = 0.1
-
-    learning_rate = CustomSchedule(d_model)
-    optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-
-    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
-    train_loss = tf.keras.metrics.Mean(name='train_loss')
-    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
-
-    transformer = TransformerEX(num_layers, d_model, num_heads, dff,
-                          vocab_size, vocab_size, 
-                          pe_input=vocab_size, 
-                          pe_target=vocab_size,
-                          rate=dropout_rate
-                    )
-    execution = Execution(transformer, loss_object, train_loss, train_accuracy, optimizer)
-
-    checkpoint_path = "./models/training_checkpoints/"
-    ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
-    ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
-    if ckpt_manager.latest_checkpoint:
-        ckpt.restore(ckpt_manager.latest_checkpoint)
-        print ('Latest checkpoint restored!!')
-    
-
-    mpath = 'models/sentensepice'
     sp = spm.SentencePieceProcessor()
-    sp.load(mpath+'.model')
+    sp.Load(root_path + 'wiki-ja.model')
 
-    line1 = ''
-    while True:
-        print('Conversation:')
-        line2 = input('> ')
-        if not line2: break
-        parts1 = sp.encode_as_pieces(line1)
-        parts2 = sp.encode_as_pieces(line2)
-        parts1 = ['<start>'] + parts1 + ['<end>']
-        parts2 = ['<start>'] + parts2 + ['<end>']
-        num_parts1 = [vocab[part] for part in parts1]
-        num_parts2 = [vocab[part] for part in parts2]
-        inp1 = np.asarray(num_parts1)
-        inp2 = np.asarray(num_parts2)
+    corpus = pickle.load(open('data/train_corpus.pkl', 'rb'))
+    labels = pickle.load(open('data/label_corpus.pkl', 'rb'))
+    segment = pickle.load(open('data/segment.pkl', 'rb'))
+    output_vocab = pickle.load(open('data/output_vocab.pkl', 'rb'))
+    in_idx2out_idx = pickle.load(open('data/in_idx2out_idx.pkl', 'rb'))
+    length = len(corpus)
 
-        in_sentence1, in_sentence2, ret_sentence = '', '', ''
-        ret, _ = execution.evaluate([inp1, inp2], vocab, maxlen)
-        for n in inp1:
-            if n == vocab['<end>']: break
-            in_sentence1 += index[n]
-        in_sentence1 = in_sentence1.replace('<start>', '').replace('<end>', '')
-        print('prequery: %s'%in_sentence1[1:])
-        for n in inp2:
-            if n == vocab['<end>']: break
-            in_sentence2 += index[n]
-        in_sentence2 = in_sentence2.replace('<start>', '').replace('<end>', '')
-        print('query: %s'%in_sentence2[1:])
-        for n in ret.numpy():
-            if n == vocab['<end>']: break
-            ret_sentence += index[n]
-        ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
-        print('response: %s'%ret_sentence[1:])
-        print()
-        line1 = ret_sentence
+    SEQ_LEN = 2 * maxlen
+    BATCH_SIZE = 16
+    EPOCH = 5
+    learning_rate = 1e-4
+
+    model = keras.models.load_model(
+            'models/bert_finetune.h5',
+            compile=False,
+            custom_objects=get_custom_objects()
+        )
+    model.summary()
+    
+    org_text = corpus[0]
+    for t in org_text:
+        if t == 0:
+            print()
+            break
+        print(sp.id_to_piece(t), end='')
+    print(org_text)
+    seg_ids = segment[0]
+    text, flg, start = [], False, 0
+    sep_id = sp.piece_to_id('[SEP]')
+    cls_id = sp.piece_to_id('[CLS]')
+    mask_id = sp.piece_to_id('[MASK]')
+    for i, t in enumerate(corpus[0]):
+        text.append(t)
+        if t == sep_id:
+            start = i + 1
+            break
+    for i in range(start, len(corpus[0])):
+        text.append(0)
+    length = random.randint(3, 31)
+    end = start + length
+
+    for i in range(SEQ_LEN):
+        if start <= i and i < end: seg_ids[i] = 1
+        else: seg_ids[i] = 0
+    vocab_size = len(output_vocab)
+
+    for i in range(start, end):
+        t = random.randint(1, vocab_size)
+        while t == sep_id or t == cls_id or t == mask_id:
+            t = random.randint(1, vocab_size)
+        text[i] = t
+    text[end] = sep_id
+
+    print('Distributed')
+    out_idx2in_idx = {val: key for key, val in in_idx2out_idx.items()}
+    mask = start
+    for l in range(12@0):
+        print(mask)
+        text[mask] = mask_id
+        predict = model.predict([np.array([text]), np.array([seg_ids])])
+        predict = [np.argmax(t) for t in predict[0]]
+        if predict[mask] == 0:
+            mask += 1
+            continue
+        if predict[mask] == mask_id:
+            mask += 1
+            continue
+        text[mask] = out_idx2in_idx[predict[mask]]
+        print(text)
+        mask += 1
+        if mask == end:
+            mask = start
+
+    for t in text:
+        if t == 0: break
+        print(sp.id_to_piece(t), end='')
+    print()
+    
