@@ -2,14 +2,34 @@ import sys, os
 import pickle
 import numpy as np
 import pandas as pd
-from model import *
 import sentencepiece as spm
+import tensorflow as tf
+import bert
+
+class DataGenerator(tf.keras.utils.Sequence):
+    def __init__(self, X, Y, Z, batch_size):
+        self.X = X
+        self.Y = Y
+        self.Z = Z
+        self.batch_size = batch_size
+
+    def __getitem__(self, idx):
+        start, end = idx*self.batch_size, (idx+1)*self.batch_size
+        X, Y = np.array(self.X[start: end]), np.array(self.Y[start: end])
+        Z = np.array(self.Z[start: end])
+        return [X, Y], Z
+
+    def __len__(self):
+        return int(len(self.X) / self.batch_size)
+
+    def on_epoch_end(self):
+        pass
 
 if __name__ == '__main__':
-    root_path = './bert_model/japanese/'
+    root_path = './bert_model/albert/'
     maxlen = 32
     sp = spm.SentencePieceProcessor()
-    sp.Load(root_path + 'wiki-ja.model')
+    sp.Load(root_path + 'wiki-ja_albert.model')
 
     corpus = pickle.load(open('data/train_corpus.pkl', 'rb'))
     labels = pickle.load(open('data/label_corpus.pkl', 'rb'))
@@ -30,25 +50,41 @@ if __name__ == '__main__':
     valid_gen = DataGenerator(valid, seg_v, lbl_v, BATCH_SIZE)
 
     model_dir = root_path
-    config = 'bert_config.json'
+    config = 'albert_config.json'
     checkpoint = 'model.ckpt-1400000'
-    bert_ft = BertFineTune(model_dir, config, checkpoint, SEQ_LEN)
-    model = bert_ft.build_model(len(output_vocab))
-    model.summary()
-    model.compile(
-        optimizer=get_optimizer(len(train), BATCH_SIZE, EPOCH, learning_rate),
-        loss=loss_function,
-        metrics=[acc_function]
-    )
-    model.fit_generator(
-        train_gen,
-        steps_per_epoch=int(length*rate / BATCH_SIZE),
-        epochs=EPOCH
-    )
-    model.save('./models/bert_finetune.h5')
 
-    x = model.predict([np.array([corpus[0]]), np.array([segment[0]])])
-    ret = []
-    ret = [np.argmax(t) for t in x[0]]
-    print(ret)
-    print(labels[0])
+    model_name = "albert_base"
+    model_dir    = bert.fetch_tfhub_albert_model(model_name, ".models")
+    model_params = bert.albert_params(model_name)
+    l_bert = bert.BertModelLayer.from_params(model_params, name="albert")
+
+    l_input_ids      = tf.keras.layers.Input(shape=(max_seq_len,), dtype='int32')
+    l_token_type_ids = tf.keras.layers.Input(shape=(max_seq_len,), dtype='int32')
+
+    output = l_bert(l_input_ids) 
+    model = keras.Model(inputs=l_input_ids, outputs=output)
+    print('xxxx')
+    model.summary()
+
+    # bert.load_albert_weights(l_bert, albert_dir)
+
+    # bert_ft = BertFineTune(model_dir, config, checkpoint, SEQ_LEN)
+    # model = bert_ft.build_model(len(output_vocab))
+    # model.summary()
+    # model.compile(
+    #     optimizer=get_optimizer(len(train), BATCH_SIZE, EPOCH, learning_rate),
+    #     loss=loss_function,
+    #     metrics=[acc_function]
+    # )
+    # model.fit_generator(
+    #     train_gen,
+    #     steps_per_epoch=int(length*rate / BATCH_SIZE),
+    #     epochs=EPOCH
+    # )
+    # model.save('./models/bert_finetune.h5')
+
+    # x = model.predict([np.array([corpus[0]]), np.array([segment[0]])])
+    # ret = []
+    # ret = [np.argmax(t) for t in x[0]]
+    # print(ret)
+    # print(labels[0])
