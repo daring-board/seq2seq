@@ -48,3 +48,21 @@ def get_optimizer(input_size, batch_size, epochs, lr):
         )
     return AdamWarmup(decay_steps=decay_steps, warmup_steps=warmup_steps, lr=lr)
 
+class DataGenerator(keras.utils.Sequence):
+    def __init__(self, X, Y, Z, batch_size):
+        self.X = X
+        self.Y = Y
+        self.Z = Z
+        self.batch_size = batch_size
+
+    def __getitem__(self, idx):
+        start, end = idx*self.batch_size, (idx+1)*self.batch_size
+        X, Y = np.array(self.X[start: end]), np.array(self.Y[start: end])
+        Z = np.array(self.Z[start: end])
+        return [X, Y], Z
+
+    def __len__(self):
+        return int(len(self.X) / self.batch_size)
+
+    def on_epoch_end(self):
+        pass
