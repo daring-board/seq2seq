@@ -32,60 +32,43 @@ if __name__ == '__main__':
         )
     model.summary()
     
-    org_text = corpus[0]
-    for t in org_text:
+    num = 25
+    text = corpus[num]
+    seg_ids = segment[num]
+    for t in text:
         if t == 0:
             print()
             break
         print(sp.id_to_piece(t), end='')
-    print(org_text)
-    seg_ids = segment[0]
-    text, flg, start = [], False, 0
+    start = 0
     sep_id = sp.piece_to_id('[SEP]')
     cls_id = sp.piece_to_id('[CLS]')
     mask_id = sp.piece_to_id('[MASK]')
-    for i, t in enumerate(corpus[0]):
-        text.append(t)
-        if t == sep_id:
-            start = i + 1
-            break
-    for i in range(start, len(corpus[0])):
-        text.append(0)
-    length = random.randint(3, 31)
-    end = start + length
-
-    for i in range(SEQ_LEN):
-        if start <= i and i < end: seg_ids[i] = 1
-        else: seg_ids[i] = 0
-    vocab_size = len(output_vocab)
-
-    for i in range(start, end):
-        t = random.randint(1, vocab_size)
-        while t == sep_id or t == cls_id or t == mask_id:
-            t = random.randint(1, vocab_size)
-        text[i] = t
-    text[end] = sep_id
+    for i, t in enumerate(text):
+        if t == mask_id: start = i
 
     print('Distributed')
     out_idx2in_idx = {val: key for key, val in in_idx2out_idx.items()}
-    mask = start
-    for l in range(120):
-        print(mask)
-        text[mask] = mask_id
-        predict = model.predict([np.array([text]), np.array([seg_ids])])
-        predict = [np.argmax(t) for t in predict[0]]
-        if predict[mask] == 0:
-            mask += 1
-            continue
-        if predict[mask] == mask_id:
-            random.randint(1, vocab_size)
-            continue
-        text[mask] = out_idx2in_idx[predict[mask]]
-        print(text)
-        mask += 1
-        if mask == end:
-            mask = start
 
+    print(text)
+    print(seg_ids)
+
+    count = 0
+    predict = model.predict([np.array([text]), np.array([seg_ids])])
+    predict = [np.argmax(t) for t in predict[0]][start]
+    predict = out_idx2in_idx[predict]
+    while predict != sep_id and count < maxlen and predict != 0:
+        text[start + count] = predict
+        seg_ids[start + count] = 1
+        count += 1
+        text[start + count] = mask_id
+        seg_ids[start + count] = 1
+
+        predict = model.predict([np.array([text]), np.array([seg_ids])])
+        predict = [np.argmax(t) for t in predict[0]][start + count]
+        predict = out_idx2in_idx[predict]
+
+    print(text)
     for t in text:
         if t == 0: break
         print(sp.id_to_piece(t), end='')

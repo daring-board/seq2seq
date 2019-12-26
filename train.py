@@ -19,10 +19,10 @@ if __name__ == '__main__':
 
     SEQ_LEN = 2 * maxlen
     BATCH_SIZE = 16
-    EPOCH = 5
+    EPOCH = 2
     learning_rate = 1e-4
 
-    rate = 0.8
+    rate = 0.9
     train, valid = corpus[:int(length*rate)], corpus[int(length*rate):int(length*(rate+0.02))]
     seg_t, seg_v = segment[:int(length*rate)], segment[int(length*rate):int(length*(rate+0.02))]
     lbl_t, lbl_v = labels[:int(length*rate)], labels[int(length*rate):int(length*(rate+0.02))]

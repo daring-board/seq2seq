@@ -2,6 +2,7 @@ import numpy as np
 import keras_bert
 from keras_bert import load_trained_model_from_checkpoint
 from keras_bert import AdamWarmup, calc_train_steps
+from keras_multi_head import MultiHeadAttention
 import keras
 import keras.backend as K
 
