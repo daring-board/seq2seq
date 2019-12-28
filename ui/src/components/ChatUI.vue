@@ -33,7 +33,7 @@ export default{
         console.log(res.data)
         chat.addEntry(res.data).readable
         console.log("done")
-        data['uttence1'] = data['uttence2']
+        data['uttence1'] = res.data
         this.process(data)
       })
     }

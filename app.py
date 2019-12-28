@@ -14,6 +14,7 @@ def hello():
 @app.route('/query', methods=['POST'])
 def query():
     data = request.get_json()
+    print(data)
     lines = data['uttence1'], data['uttence2']
     res = app.config['engine'].response(lines)
     res = res.replace('▁', '')

@@ -16,7 +16,7 @@ class ChatEngine():
         self.vocab = {v: k for k, v in self.index.items()}
 
         vocab_size = len(self.vocab) + 1
-        num_layers = 2
+        num_layers = 3
         d_model = 64
         dff = 256
         num_heads = 8

@@ -62,7 +62,7 @@ if __name__ == '__main__':
         ckpt.restore(ckpt_manager.latest_checkpoint)
         print ('Latest checkpoint restored!!')
 
-    EPOCHS = 300
+    EPOCHS = 10
     for epoch in range(EPOCHS):
         start = time.time()
         
@@ -107,4 +107,4 @@ if __name__ == '__main__':
             print(ret_sentence)
             print()
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
-    tf.saved_model.save(execution, 'models/latest')
+    tf.saved_model.save(execution, 'models/')
