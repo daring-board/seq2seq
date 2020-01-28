@@ -39,8 +39,9 @@ if __name__ == '__main__':
     num_heads = 8
     dropout_rate = 0.1
     BATCH_SIZE = 1024
+    steps_per_epoch = int(len(X_train) / BATCH_SIZE)
 
-    learning_rate = CustomSchedule(d_model)
+    learning_rate = CustomSchedule(d_model, warmup_steps=steps_per_epoch)
     optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
@@ -69,7 +70,6 @@ if __name__ == '__main__':
         train_loss.reset_states()
         train_accuracy.reset_states()
         
-        steps_per_epoch = int(len(X_train) / BATCH_SIZE)
         for batch in range(steps_per_epoch):
             inp1 = np.asarray(X_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
             inp2 = np.asarray(Y_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
