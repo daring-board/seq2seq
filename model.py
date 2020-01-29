@@ -227,11 +227,11 @@ class Functions():
         self.vocab = vocab
 
     def loss_function(self, y_true, y_pred):
-        y_true = tf.reshape(y_true, shape=(-1, self.maxlen - 1))
-        loss = self.loss_object(y_true, y_pred)
-        mask = tf.cast(tf.not_equal(y_true, 0), tf.float32)
-        loss = tf.multiply(loss, mask)
-        return tf.reduce_mean(loss)
+        mask = tf.math.logical_not(tf.math.equal(real, 0))
+        loss_ = self.loss_object(real, pred)
+        mask = tf.cast(mask, dtype=loss_.dtype)
+        loss_ *= mask    
+        return tf.reduce_mean(loss_)
 
     def accuracy(self, y_true, y_pred):
         y_true = tf.reshape(y_true, shape=(-1, self.maxlen - 1))
@@ -271,3 +271,21 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         arg1 = tf.math.rsqrt(step)
         arg2 = step * (self.warmup_steps ** -1.5)
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+
+class DataSequence(tf.keras.utils.Sequence):
+    def __init__(self, X, Y, batch_size):
+        self.batch = batch_size
+        self.X, self.Y = X, Y
+        self.length = len(X)
+
+    def __getitem__(self, idx):
+        X = np.asarray(self.X[idx*self.batch: (idx+1)*self.batch])
+        Y = np.asarray(self.Y[idx*self.batch: (idx+1)*self.batch])
+        return [X, Y[:, :-1]], Y[:, 1:]
+
+    def __len__(self):
+        return int(self.length / self.batch)
+
+    def on_epoch_end(self):
+        ''' 何もしない'''
+        pass

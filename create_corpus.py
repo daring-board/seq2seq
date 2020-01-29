@@ -36,11 +36,18 @@ if __name__ == '__main__':
         sp = spm.SentencePieceProcessor()
         sp.load(mpath+'.model')
 
-        comp = []
-        for l in texts:
-            sn = sp.encode_as_pieces(l)
-            sn = ['<start>'] + sn + ['<end>']
+        comp, anno = [], []
+        for idx, l in enumerate(texts[:-5]):
+            sn1 = sp.encode_as_pieces(l)
+            sn2 = sp.encode_as_pieces(texts[idx+1])
+            sn3 = sp.encode_as_pieces(texts[idx+2])
+            sn4 = sp.encode_as_pieces(texts[idx+3])
+            sn5 = sp.encode_as_pieces(texts[idx+4])
+            sn = ['<start>'] + sn1 + ['<sep>']
+            sn += sn2 + ['<sep>'] + sn3 + ['<sep>']+ sn4 + ['<end>']
             comp.append(sn)
+            sn = ['<start>'] + sn5 + ['<end>']
+            anno.append(sn)
 
     index, count = {}, {}
     for l in comp:
@@ -50,7 +57,7 @@ if __name__ == '__main__':
                 count[t] = 0
             count[t] += 1
     for idx, k in enumerate(index):
-        index[k] = idx
+        index[k] = idx+1
     vocab_size = len(index) + 1
     print(vocab_size)
     with open('data/dict.pkl', 'wb') as f:
@@ -58,9 +65,16 @@ if __name__ == '__main__':
     with open('data/distribution.pkl', 'wb') as f:
         pickle.dump(count, f)
 
-    maxlen = 32
+    maxlen = 64
     corpus = [[index[t] for t in l] for l in comp]
-    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='post', value=index['<end>'])
+    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='post', value=0)
     print(corpus[0])
     with open('data/corpus.pkl', 'wb') as f:
+        pickle.dump(corpus, f)
+    
+    maxlen = 32
+    corpus = [[index[t] for t in l] for l in anno]
+    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='post', value=0)
+    print(corpus[0])
+    with open('data/response.pkl', 'wb') as f:
         pickle.dump(corpus, f)
