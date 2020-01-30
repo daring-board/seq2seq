@@ -34,25 +34,28 @@ if __name__ == '__main__':
     vocab_size = len(vocab) + 1
     num_layers = 2
     d_model = 64
-    dff = 256
+    dff = 512
     num_heads = 8
-    dropout_rate = 0.2
+    dropout_rate = 0.1
     BATCH_SIZE = 512
     output_max_len = 32
-    steps_per_epoch = int(len(X_train) / BATCH_SIZE)
+    EPOCHS = 20
+    steps_per_epoch = int(len(X_train) / BATCH_SIZE) * EPOCHS
+    warmup_step = int(steps_per_epoch / 10)
 
-    learning_rate = CustomSchedule(d_model, steps_per_epoch)
-    optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
 
-    model = transformer(vocab_size, num_layers, dff, d_model, num_heads, dropout_rate)
+    transformer = TransformerEX(vocab_size, num_layers, dff, d_model, num_heads, dropout_rate)
+    model = transformer.build_model()
     mtx_obj = Functions(model ,loss_object, output_max_len, vocab)
 
-    model.compile(optimizer=optimizer, loss=mtx_obj.loss_function, metrics=[mtx_obj.accuracy])
+    model.compile(optimizer='adam', loss=mtx_obj.loss_function, metrics=[mtx_obj.accuracy])
     model.summary()
     # model.load_weights('./models/param.hdf5')
 
-    EPOCHS = 10
+    callbacks = [
+        tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=2, min_lr=0.0001, verbose=1)
+    ]
     train_gen = DataSequence(X_train, Y_train, BATCH_SIZE)
     test_gen = DataSequence(X_test, Y_test, BATCH_SIZE)
     for _ in range(10):
@@ -62,7 +65,8 @@ if __name__ == '__main__':
             len(train_gen),
             EPOCHS,
             validation_data=test_gen,
-            validation_steps=len(test_gen)
+            validation_steps=len(test_gen),
+            callbacks=callbacks,
         )
 
         for idx in range(3):
