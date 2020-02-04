@@ -33,15 +33,15 @@ if __name__ == '__main__':
     print(X_train[0])
 
     vocab_size = len(vocab) + 1
-    num_layers = 3
-    d_model = 64
-    dff = 256
+    num_layers = 6
+    d_model = 256
+    dff = 1024
     num_heads = 8
     dropout_rate = 0.1
-    BATCH_SIZE = 1024
+    BATCH_SIZE = 128
     steps_per_epoch = int(len(X_train) / BATCH_SIZE)
 
-    learning_rate = CustomSchedule(d_model, warmup_steps=steps_per_epoch)
+    learning_rate = CustomSchedule(d_model, warmup_steps=4000)
     optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
