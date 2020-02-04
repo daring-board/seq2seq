@@ -24,9 +24,9 @@ if __name__ == '__main__':
     vocab = {v: k for k, v in index.items()}
 
     vocab_size = len(vocab) + 1
-    num_layers = 3
-    d_model = 64
-    dff = 256
+    num_layers = 2
+    d_model = 128
+    dff = 512
     num_heads = 8
     dropout_rate = 0.1
 
@@ -57,22 +57,26 @@ if __name__ == '__main__':
     sp = spm.SentencePieceProcessor()
     sp.load(mpath+'.model')
 
-    line1 = ''
+    line1, line2 = '', ''
     while True:
         print('Conversation:')
-        line2 = input('> ')
-        if not line2: break
+        line3 = input('> ')
+        if not line3: break
         parts1 = sp.encode_as_pieces(line1)
         parts2 = sp.encode_as_pieces(line2)
+        parts3 = sp.encode_as_pieces(line3)
         parts1 = ['<start>'] + parts1 + ['<end>']
         parts2 = ['<start>'] + parts2 + ['<end>']
+        parts3 = ['<start>'] + parts3 + ['<end>']
         num_parts1 = [vocab[part] for part in parts1]
         num_parts2 = [vocab[part] for part in parts2]
+        num_parts3 = [vocab[part] for part in parts3]
         inp1 = np.asarray(num_parts1)
         inp2 = np.asarray(num_parts2)
+        inp3 = np.asarray(num_parts3)
 
-        in_sentence1, in_sentence2, ret_sentence = '', '', ''
-        ret, _ = execution.evaluate([inp1, inp2], vocab, maxlen)
+        in_sentence1, in_sentence2, in_sentence3, ret_sentence = '', '', '', ''
+        ret, _ = execution.evaluate([inp1, inp2, inp3], vocab, maxlen)
         for n in inp1:
             if n == vocab['<end>']: break
             in_sentence1 += index[n]
@@ -82,11 +86,17 @@ if __name__ == '__main__':
             if n == vocab['<end>']: break
             in_sentence2 += index[n]
         in_sentence2 = in_sentence2.replace('<start>', '').replace('<end>', '')
-        print('query: %s'%in_sentence2[1:])
+        print('prequery: %s'%in_sentence2[1:])
+        for n in inp3:
+            if n == vocab['<end>']: break
+            in_sentence3 += index[n]
+        in_sentence3 = in_sentence3.replace('<start>', '').replace('<end>', '')
+        print('query: %s'%in_sentence3[1:])
         for n in ret.numpy():
             if n == vocab['<end>']: break
             ret_sentence += index[n]
         ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
         print('response: %s'%ret_sentence[1:])
         print()
-        line1 = ret_sentence
+        line1 = in_sentence3
+        line2 = ret_sentence
