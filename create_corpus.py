@@ -23,7 +23,6 @@ if __name__ == '__main__':
         comp = []
         for l in texts:
             sn = [token for token in analyzer.analyze(l)]
-            sn = ['<start>'] + sn + ['<end>']
             comp.append(sn)
         del analyzer
         del token_filters
@@ -31,20 +30,14 @@ if __name__ == '__main__':
         del tokenizer
     else:
         mpath = 'models/sentensepice'
-        template = '--input=%s --model_prefix=%s --vocab_size=8000'
+        template = '--input=%s --model_prefix=%s --vocab_size=20000'
         spm.SentencePieceTrainer.train(template%(path, mpath))
         sp = spm.SentencePieceProcessor()
         sp.load(mpath+'.model')
 
-        comp, anno = [], []
-        for idx, l in enumerate(texts[:-5]):
-            sn1 = sp.encode_as_pieces(l)
-            sn2 = sp.encode_as_pieces(texts[idx+1])
-            sn3 = sp.encode_as_pieces(texts[idx+2])
-            sn4 = sp.encode_as_pieces(texts[idx+3])
-            sn5 = sp.encode_as_pieces(texts[idx+4])
-            sn = ['<start>'] + sn1 + ['<sep>']
-            sn += sn2 + ['<sep>'] + sn3 + ['<sep>']+ sn4 + ['<end>']
+        comp = []
+        for l in texts:
+            sn = sp.encode_as_pieces(l)
             comp.append(sn)
             sn = ['<start>'] + sn5 + ['<end>']
             anno.append(sn)
@@ -56,25 +49,32 @@ if __name__ == '__main__':
             if t not in count:
                 count[t] = 0
             count[t] += 1
+    for piece in ['<start>', '<end>', '<sep>']:
+        index[piece] = 1
+
     for idx, k in enumerate(index):
         index[k] = idx+1
     vocab_size = len(index) + 1
     print(vocab_size)
+
     with open('data/dict.pkl', 'wb') as f:
         pickle.dump({v: k for k, v in index.items()}, f)
     with open('data/distribution.pkl', 'wb') as f:
         pickle.dump(count, f)
 
+    start, sep, end = index['<start>'], index['<sep>'], index['<end>']
     maxlen = 64
-    corpus = [[index[t] for t in l] for l in comp]
-    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='post', value=0)
+    corpus = [[start]+[index[t] for t in l]+[sep]+[index[t] for t in comp[idx+1]]+[end] for idx, l in enumerate(comp[:-2])]
+    corpus += [[start]+[index[t] for t in l]+[end] for idx, l in enumerate(comp[:-1])]
+    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='pre')
     print(corpus[0])
-    with open('data/corpus.pkl', 'wb') as f:
+    with open('data/X_corpus.pkl', 'wb') as f:
         pickle.dump(corpus, f)
-    
+
     maxlen = 32
-    corpus = [[index[t] for t in l] for l in anno]
-    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='post', value=0)
+    corpus = [[start]+[index[t] for t in l]+[end] for l in comp[2:]]
+    corpus += [[start]+[index[t] for t in l]+[end] for l in comp[1:]]
+    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='post')
     print(corpus[0])
-    with open('data/response.pkl', 'wb') as f:
+    with open('data/Y_corpus.pkl', 'wb') as f:
         pickle.dump(corpus, f)

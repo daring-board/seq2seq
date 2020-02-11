@@ -1,27 +1,29 @@
 import os, sys
 import pickle
 import time
+import random
 import numpy as np
 import tensorflow as tf
 
 from model import *
 
 if __name__ == '__main__':
-    maxlen = 64
-    with open('data/corpus.pkl', 'rb') as f:
-        corpus = pickle.load(f)
-    with open('data/response.pkl', 'rb') as f:
-        response = pickle.load(f)
+    maxlen = 32
+    with open('data/X_corpus.pkl', 'rb') as f:
+        X_corpus = pickle.load(f)
+    with open('data/Y_corpus.pkl', 'rb') as f:
+        Y_corpus = pickle.load(f)
     with open('data/dict.pkl', 'rb') as f:
         index = pickle.load(f)
     vocab = {v: k for k, v in index.items()}
 
-    X_train, Y_train, Z_train = [], [], []
-    for idx, l in enumerate(corpus):
-        li0 = l.tolist()
-        li1 = response[idx]
-        X_train.append(li0)
-        Y_train.append(li1)
+    X_train, Y_train = [], []
+    for idx in random.sample(range(len(X_corpus)), len(X_corpus)):
+        X_train.append(X_corpus[idx].tolist())
+        Y_train.append(Y_corpus[idx].tolist())
+    del X_corpus, Y_corpus
+    print(X_train[0])
+    print(Y_train[0])
 
     rate = 0.9
     length = len(X_train)
@@ -32,16 +34,16 @@ if __name__ == '__main__':
     print(X_train[0])
 
     vocab_size = len(vocab) + 1
-    num_layers = 2
+    num_layers = 3
     d_model = 64
-    dff = 512
+    dff = 256
     num_heads = 8
     dropout_rate = 0.1
-    BATCH_SIZE = 512
-    output_max_len = 32
-    EPOCHS = 20
-    steps_per_epoch = int(len(X_train) / BATCH_SIZE) * EPOCHS
-    warmup_step = int(steps_per_epoch / 10)
+    BATCH_SIZE = 128
+    steps_per_epoch = int(len(X_train) / BATCH_SIZE)
+
+    learning_rate = CustomSchedule(d_model, warmup_steps=50000)
+    optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
 
@@ -53,27 +55,35 @@ if __name__ == '__main__':
     model.summary()
     # model.load_weights('./models/param.hdf5')
 
-    callbacks = [
-        tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=2, min_lr=0.0001, verbose=1)
-    ]
-    train_gen = DataSequence(X_train, Y_train, BATCH_SIZE)
-    test_gen = DataSequence(X_test, Y_test, BATCH_SIZE)
-    for _ in range(10):
+    EPOCHS = 50
+    for epoch in range(EPOCHS):
         start = time.time()
-        model.fit_generator(
-            train_gen,
-            len(train_gen),
-            EPOCHS,
-            validation_data=test_gen,
-            validation_steps=len(test_gen),
-            callbacks=callbacks,
-        )
+        
+        train_loss.reset_states()
+        train_accuracy.reset_states()
+        
+        for batch in range(steps_per_epoch):
+            inp = np.asarray(X_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
+            trg = np.asarray(Y_train[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE])
+            execution.train_step(inp, trg)
+            if batch % 50 == 0:
+                print ('Epoch {} Batch {} Loss {:.4f} Accuracy {:.4f}'.format(
+                    epoch + 1, batch, train_loss.result(), train_accuracy.result()))
+            
+        if (epoch + 1) % 5 == 0:
+            ckpt_save_path = ckpt_manager.save()
+            print ('Saving checkpoint for epoch {} at {}'.format(epoch+1, ckpt_save_path))
+            
+        print ('Epoch {} Loss {:.4f} Accuracy {:.4f}'.format(epoch + 1, 
+                                                        train_loss.result(), 
+                                                        train_accuracy.result()))
 
         for idx in range(3):
             in_sentence, ret_sentence = '', ''
-            inp = np.asarray([X_test[idx]])
-            ret = mtx_obj.evaluate(inp)
-            for n in inp[0]:
+            inp = np.asarray(X_test[idx])
+            expect = np.asarray(Y_test[idx])
+            ret, _ = execution.evaluate(inp, vocab, maxlen, expect)
+            for n in inp:
                 in_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
             print(in_sentence)
@@ -82,5 +92,6 @@ if __name__ == '__main__':
                 ret_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
             print(ret_sentence)
-        model.save_weights('./models/param.hdf5')
+            print()
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
+    tf.saved_model.save(execution, 'models/')

@@ -154,7 +154,8 @@ rigel/public/model/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
 
-*.pkl
-*.txt
+data/*.pkl
+data/*.txt
 */training_checkpoints
 models/*
+bert_model/*

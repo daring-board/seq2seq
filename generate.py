@@ -4,6 +4,10 @@ import time
 import numpy as np
 import tensorflow as tf
 import sentencepiece as spm
+from janome.tokenizer import Tokenizer
+from janome.analyzer import Analyzer
+from janome.charfilter import *
+from janome.tokenfilter import *
 
 from model import *
 
@@ -24,9 +28,9 @@ if __name__ == '__main__':
     vocab = {v: k for k, v in index.items()}
 
     vocab_size = len(vocab) + 1
-    num_layers = 2
+    num_layers = 3
     d_model = 64
-    dff = 512
+    dff = 256
     num_heads = 8
     dropout_rate = 0.1
 
@@ -51,32 +55,34 @@ if __name__ == '__main__':
     if ckpt_manager.latest_checkpoint:
         ckpt.restore(ckpt_manager.latest_checkpoint)
         print ('Latest checkpoint restored!!')
+    
 
     mpath = 'models/sentensepice'
     sp = spm.SentencePieceProcessor()
     sp.load(mpath+'.model')
 
-    count = 0
+    line1 = ''
     while True:
-        print('Conversation: %d'%count)
-        line = input('> ')
-        if not line: break
-        parts = sp.encode_as_pieces(line)
-        parts = ['<start>'] + parts + ['<end>']
+        print('Conversation:')
+        line2 = input('> ')
+        if not line2: break
+        parts1 = sp.encode_as_pieces(line1)
+        parts2 = sp.encode_as_pieces(line2)
+        parts = ['<start>'] + parts1 + ['<sep>'] + parts2 + ['<end>']
         num_parts = [vocab[part] for part in parts]
         inp = np.asarray(num_parts)
 
         in_sentence, ret_sentence = '', ''
         ret, _ = execution.evaluate(inp, vocab, maxlen)
         for n in inp:
-            if n == 0: break
             in_sentence += index[n]
+            if n == vocab['<end>']: break
         in_sentence = in_sentence.replace('<start>', '').replace('<end>', '')
-        print('query: %s'%in_sentence[1:])
+        print('query: %s'%in_sentence)
         for n in ret.numpy():
-            if n == 0: break
             ret_sentence += index[n]
+            if n == vocab['<end>']: break
         ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
-        print('response: %s'%ret_sentence[1:])
+        print('response: %s'%ret_sentence)
         print()
-        count += 1
+        line1 = ret_sentence
