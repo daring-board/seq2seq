@@ -21,7 +21,7 @@ class ChatEngine():
         dff = 256
         num_heads = 8
         dropout_rate = 0.1 
-        self.transformer = TransformerEX(num_layers, d_model, num_heads, dff,
+        self.transformer = Transformer(num_layers, d_model, num_heads, dff,
                           vocab_size, vocab_size, 
                           pe_input=vocab_size, 
                           pe_target=vocab_size,
@@ -52,14 +52,11 @@ class ChatEngine():
         line1, line2 = sentences[0], sentences[1]
         parts1 = self.sp.encode_as_pieces(line1)
         parts2 = self.sp.encode_as_pieces(line2)
-        parts1 = ['<start>'] + parts1 + ['<end>']
-        parts2 = ['<start>'] + parts2 + ['<end>']
-        num_parts1 = [self.vocab[part] for part in parts1]
-        num_parts2 = [self.vocab[part] for part in parts2]
-        inp1 = np.asarray(num_parts1)
-        inp2 = np.asarray(num_parts2)
-        in_sentence1, in_sentence2, ret_sentence = '', '', ''
-        ret, _ = generate([inp1, inp2], self.vocab, self.maxlen, self.transformer)
+        parts = ['<start>'] + parts1 + ['<sep>'] + parts2 + ['<end>']
+        num_parts = [self.vocab[part] for part in parts]
+        inp = np.asarray(num_parts)
+        in_sentence, ret_sentence = '', ''
+        ret, _ = generate(inp, self.vocab, self.maxlen, self.transformer)
 
         for n in ret.numpy():
             if n == self.vocab['<end>']: break

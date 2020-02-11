@@ -178,28 +178,8 @@ class Decoder(tf.keras.layers.Layer):
         attention_weights['decoder_layer{}_block2'.format(i+1)] = block2
         return x, attention_weights
 
-class TransformerEX(tf.keras.Model):
-    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, 
-                target_vocab_size, pe_input, pe_target, rate=0.1):
-        super(TransformerEX, self).__init__()
-        self.encoder1 = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
-        self.encoder2 = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
-        self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, rate)
-        self.concat = tf.keras.layers.Concatenate()
-        self.final_layer = tf.keras.layers.Dense(target_vocab_size)
-
-    def __call__(self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
-        enc_output1 = self.encoder1(inp[0], training, enc_padding_mask[0])  # (batch_size, inp_seq_len, d_model)
-        enc_output2 = self.encoder2(inp[1], training, enc_padding_mask[1])  # (batch_size, inp_seq_len, d_model)
-        dec_output1, attention_weights1 = self.decoder(tar, enc_output1, training, look_ahead_mask[0], dec_padding_mask[0])
-        dec_output2, attention_weights2 = self.decoder(tar, enc_output2, training, look_ahead_mask[1], dec_padding_mask[1])
-        dec_output = self.concat([dec_output1, dec_output2])
-        final_output = self.final_layer(dec_output)  # (batch_size, tar_seq_len, target_vocab_size)
-        return final_output, [attention_weights1, attention_weights2]
-
 class Transformer(tf.keras.Model):
-    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, 
-                target_vocab_size, pe_input, pe_target, rate=0.1):
+    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, target_vocab_size, pe_input, pe_target, rate=0.1):
         super(Transformer, self).__init__()
         self.encoder = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
         self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, rate)
@@ -236,7 +216,6 @@ class Execution(tf.Module):
     train_step_signature = [
         tf.TensorSpec(shape=(None, None), dtype=tf.int64),
         tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-        tf.TensorSpec(shape=(None, None), dtype=tf.int64),   
     ]
 
     def __init__(self, transformer, loss_object, train_loss, train_accuracy, optimizer):
@@ -254,17 +233,13 @@ class Execution(tf.Module):
         return tf.reduce_mean(loss_)
 
     @tf.function(input_signature=train_step_signature)
-    def train_step(self, inp1, inp2, tar):
+    def train_step(self, inp, tar):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
-        enc_padding_mask1, combined_mask1, dec_padding_mask1 = create_masks(inp1, tar_inp)
-        enc_padding_mask2, combined_mask2, dec_padding_mask2 = create_masks(inp2, tar_inp)
-        enc_padding_mask = [enc_padding_mask1, enc_padding_mask2]
-        combined_mask = [combined_mask1, combined_mask2]
-        dec_padding_mask = [dec_padding_mask1, dec_padding_mask2]
+        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar_inp)
         
         with tf.GradientTape() as tape:
-            predictions, _ = self.transformer([inp1, inp2], tar_inp, 
+            predictions, _ = self.transformer(inp, tar_inp, 
                                         True,
                                         enc_padding_mask, 
                                         combined_mask, 
@@ -276,18 +251,12 @@ class Execution(tf.Module):
         self.train_accuracy(tar_real, predictions)
 
     def evaluate(self, inp_sentence, vocab, maxlen, expect=None):
-        encoder_input1 = tf.expand_dims(inp_sentence[0], 0)
-        encoder_input2 = tf.expand_dims(inp_sentence[1], 0)
-        encoder_input = [encoder_input1, encoder_input2]
+        encoder_input = tf.expand_dims(inp_sentence, 0)
         decoder_input = np.asarray([vocab['<start>']])
         output = tf.expand_dims(decoder_input, 0)
             
         for i in range(maxlen):
-            enc_padding_mask1, combined_mask1, dec_padding_mask1 = create_masks(encoder_input1, output)
-            enc_padding_mask2, combined_mask2, dec_padding_mask2 = create_masks(encoder_input2, output)
-            enc_padding_mask = [enc_padding_mask1, enc_padding_mask2]
-            combined_mask = [combined_mask1, combined_mask2]
-            dec_padding_mask = [dec_padding_mask1, dec_padding_mask2]
+            enc_padding_mask, combined_mask, dec_padding_mask = create_masks(encoder_input, output)
             predictions, attention_weights = self.transformer(encoder_input, output, False, enc_padding_mask, combined_mask, dec_padding_mask)
             predictions = predictions[: ,-1:, :]  # (batch_size, 1, vocab_size)
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
@@ -297,18 +266,12 @@ class Execution(tf.Module):
         return tf.squeeze(output, axis=0), attention_weights
 
 def generate(inp_sentence, vocab, maxlen, model):
-    encoder_input1 = tf.expand_dims(inp_sentence[0], 0)
-    encoder_input2 = tf.expand_dims(inp_sentence[1], 0)
-    encoder_input = [encoder_input1, encoder_input2]
+    encoder_input = tf.expand_dims(inp_sentence, 0)
     decoder_input = np.asarray([vocab['<start>']])
     output = tf.expand_dims(decoder_input, 0)
         
     for i in range(maxlen):
-        enc_padding_mask1, combined_mask1, dec_padding_mask1 = create_masks(encoder_input1, output)
-        enc_padding_mask2, combined_mask2, dec_padding_mask2 = create_masks(encoder_input2, output)
-        enc_padding_mask = [enc_padding_mask1, enc_padding_mask2]
-        combined_mask = [combined_mask1, combined_mask2]
-        dec_padding_mask = [dec_padding_mask1, dec_padding_mask2]
+        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(encoder_input, output)
         predictions, attention_weights = model(encoder_input, output, False, enc_padding_mask, combined_mask, dec_padding_mask)
         predictions = predictions[: ,-1:, :]  # (batch_size, 1, vocab_size)
         predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
