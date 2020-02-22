@@ -29,10 +29,10 @@ if __name__ == '__main__':
 
     vocab_size = len(vocab) + 1
     num_layers = 3
-    d_model = 64
-    dff = 256
+    d_model = 128
+    dff = 512
     num_heads = 8
-    dropout_rate = 0.1
+    dropout_rate = 0.2
 
     learning_rate = CustomSchedule(d_model)
     optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
@@ -61,14 +61,12 @@ if __name__ == '__main__':
     sp = spm.SentencePieceProcessor()
     sp.load(mpath+'.model')
 
-    line1 = ''
     while True:
         print('Conversation:')
-        line2 = input('> ')
-        if not line2: break
-        parts1 = sp.encode_as_pieces(line1)
-        parts2 = sp.encode_as_pieces(line2)
-        parts = ['<start>'] + parts1 + ['<sep>'] + parts2 + ['<end>']
+        line = input('> ')
+        if not line: break
+        parts = sp.encode_as_pieces(line)
+        parts = ['<start>'] + parts + ['<end>']
         num_parts = [vocab[part] for part in parts]
         inp = np.asarray(num_parts)
 
@@ -78,11 +76,9 @@ if __name__ == '__main__':
             in_sentence += index[n]
             if n == vocab['<end>']: break
         in_sentence = in_sentence.replace('<start>', '').replace('<end>', '')
-        print('query: %s'%in_sentence)
         for n in ret.numpy():
             ret_sentence += index[n]
             if n == vocab['<end>']: break
         ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
         print('response: %s'%ret_sentence)
         print()
-        line1 = ret_sentence

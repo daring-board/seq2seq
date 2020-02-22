@@ -45,9 +45,12 @@ def print_out(q, k, v):
     print ('Output is:')
     print (temp_out)
 
+def mish(x):
+    return x * tf.nn.tanh(tf.nn.softplus(x))
+
 def point_wise_feed_forward_network(d_model, dff):
     return tf.keras.Sequential([
-        tf.keras.layers.Dense(dff, activation='relu'),  # (batch_size, seq_len, dff)
+        tf.keras.layers.Dense(dff, activation=mish),  # (batch_size, seq_len, dff)
         tf.keras.layers.Dense(d_model)  # (batch_size, seq_len, d_model)
     ])
 

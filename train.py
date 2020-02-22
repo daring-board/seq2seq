@@ -35,14 +35,15 @@ if __name__ == '__main__':
 
     vocab_size = len(vocab) + 1
     num_layers = 3
-    d_model = 64
-    dff = 256
+    d_model = 128
+    dff = 512
     num_heads = 8
-    dropout_rate = 0.1
-    BATCH_SIZE = 128
+    dropout_rate = 0.2
+    BATCH_SIZE = 32
+    EPOCHS = 200
     steps_per_epoch = int(len(X_train) / BATCH_SIZE)
 
-    learning_rate = CustomSchedule(d_model, warmup_steps=50000)
+    learning_rate = CustomSchedule(d_model, warmup_steps=(EPOCHS * steps_per_epoch) / 2)
     optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
@@ -64,7 +65,6 @@ if __name__ == '__main__':
         ckpt.restore(ckpt_manager.latest_checkpoint)
         print ('Latest checkpoint restored!!')
 
-    EPOCHS = 50
     for epoch in range(EPOCHS):
         start = time.time()
         

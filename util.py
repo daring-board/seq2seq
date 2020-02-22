@@ -49,10 +49,9 @@ class ChatEngine():
             print("Not enough GPU hardware devices available")
 
     def response(self, sentences):
-        line1, line2 = sentences[0], sentences[1]
-        parts1 = self.sp.encode_as_pieces(line1)
-        parts2 = self.sp.encode_as_pieces(line2)
-        parts = ['<start>'] + parts1 + ['<sep>'] + parts2 + ['<end>']
+        line = sentences[1]
+        parts = self.sp.encode_as_pieces(line)
+        parts = ['<start>'] + parts + ['<end>']
         num_parts = [self.vocab[part] for part in parts]
         inp = np.asarray(num_parts)
         in_sentence, ret_sentence = '', ''
