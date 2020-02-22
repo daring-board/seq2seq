@@ -1,13 +1,10 @@
 import os
 import pickle
 import time
+import random
 import numpy as np
 import tensorflow as tf
 import sentencepiece as spm
-from janome.tokenizer import Tokenizer
-from janome.analyzer import Analyzer
-from janome.charfilter import *
-from janome.tokenfilter import *
 
 from model import *
 
@@ -22,32 +19,51 @@ def checkGPU():
 
 if __name__ == '__main__':
     checkGPU()
-    maxlen = 32
-    with open('./data/dict.pkl', 'rb') as f:
+    with open('data/X_corpus.pkl', 'rb') as f:
+        X_corpus = pickle.load(f)
+    with open('data/Y_corpus.pkl', 'rb') as f:
+        Y_corpus = pickle.load(f)
+    with open('data/dict.pkl', 'rb') as f:
         index = pickle.load(f)
     vocab = {v: k for k, v in index.items()}
 
+    X_train, Y_train = [], []
+    for idx in random.sample(range(len(X_corpus)), len(X_corpus)):
+        X_train.append(X_corpus[idx].tolist())
+        Y_train.append(Y_corpus[idx].tolist())
+    del X_corpus, Y_corpus
+    print(X_train[0])
+    print(Y_train[0])
+
+    rate = 0.9
+    length = len(X_train)
+    X_train, X_test = X_train[: int(length*rate)], X_train[int(length*rate):int(length*(rate+0.1))]
+    Y_train, Y_test = Y_train[: int(length*rate)], Y_train[int(length*rate):int(length*(rate+0.1))]
+    print(len(X_train))
+    print(len(X_test))
+    print(X_train[0])
+
     vocab_size = len(vocab) + 1
+    maxlen = 64
     num_layers = 3
-    d_model = 64
+    d_model = 128
     dff = 256
     num_heads = 8
-    dropout_rate = 0.1
+    dropout_rate = 0.2
 
-    learning_rate = CustomSchedule(d_model)
+    BATCH_SIZE = 512
+    steps_per_epoch = int(len(X_train) / BATCH_SIZE)
+
+    learning_rate = CustomSchedule(d_model, warmup_steps=50000)
     optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
-    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
-    train_loss = tf.keras.metrics.Mean(name='train_loss')
-    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
-
-    transformer = Transformer(num_layers, d_model, num_heads, dff,
-                          vocab_size, vocab_size, 
-                          pe_input=vocab_size, 
-                          pe_target=vocab_size,
-                          rate=dropout_rate
+    transformer = TransformerVAE(
+                        num_layers, d_model, num_heads, dff,
+                        vocab_size, vocab_size, 
+                        pe_input=vocab_size, 
+                        pe_target=vocab_size,
+                        rate=dropout_rate
                     )
-    execution = Execution(transformer, loss_object, train_loss, train_accuracy, optimizer)
 
     checkpoint_path = "./models/training_checkpoints/"
     ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
@@ -55,34 +71,20 @@ if __name__ == '__main__':
     if ckpt_manager.latest_checkpoint:
         ckpt.restore(ckpt_manager.latest_checkpoint)
         print ('Latest checkpoint restored!!')
-    
 
-    mpath = 'models/sentensepice'
-    sp = spm.SentencePieceProcessor()
-    sp.load(mpath+'.model')
-
-    line1 = ''
-    while True:
-        print('Conversation:')
-        line2 = input('> ')
-        if not line2: break
-        parts1 = sp.encode_as_pieces(line1)
-        parts2 = sp.encode_as_pieces(line2)
-        parts = ['<start>'] + parts1 + ['<sep>'] + parts2 + ['<end>']
-        num_parts = [vocab[part] for part in parts]
-        inp = np.asarray(num_parts)
-
+    start = time.time()
+    for idx in range(3):
         in_sentence, ret_sentence = '', ''
-        ret, _ = execution.evaluate(inp, vocab, maxlen)
+        inp = np.asarray(X_test[idx])
+        expect = np.asarray(Y_test[idx])
+        ret = estimate(transformer, inp, vocab, maxlen)
         for n in inp:
-            in_sentence += index[n]
+            in_sentence += index[n] + ' '
             if n == vocab['<end>']: break
-        in_sentence = in_sentence.replace('<start>', '').replace('<end>', '')
-        print('query: %s'%in_sentence)
+        print(in_sentence)
         for n in ret.numpy():
-            ret_sentence += index[n]
+            ret_sentence += index[n] + ' '
             if n == vocab['<end>']: break
-        ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
-        print('response: %s'%ret_sentence)
+        print(ret_sentence)
         print()
-        line1 = ret_sentence
+    print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))

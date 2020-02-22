@@ -4,24 +4,26 @@ import time
 import numpy as np
 import tensorflow as tf
 import sentencepiece as spm
+from tensorflow.keras.preprocessing import sequence
 
 from model import *
 
 class ChatEngine():
     def __init__(self):
         self.checkGPU()
-        self.maxlen = 32
         with open('./data/dict.pkl', 'rb') as f:
             self.index = pickle.load(f)
         self.vocab = {v: k for k, v in self.index.items()}
 
         vocab_size = len(self.vocab) + 1
+        self.maxlen = 64
         num_layers = 3
-        d_model = 64
+        d_model = 128
         dff = 256
         num_heads = 8
-        dropout_rate = 0.1 
-        self.transformer = Transformer(num_layers, d_model, num_heads, dff,
+        dropout_rate = 0.2
+
+        self.transformer = TransformerVAE(num_layers, d_model, num_heads, dff,
                           vocab_size, vocab_size, 
                           pe_input=vocab_size, 
                           pe_target=vocab_size,
@@ -54,9 +56,10 @@ class ChatEngine():
         parts2 = self.sp.encode_as_pieces(line2)
         parts = ['<start>'] + parts1 + ['<sep>'] + parts2 + ['<end>']
         num_parts = [self.vocab[part] for part in parts]
-        inp = np.asarray(num_parts)
+        inp = sequence.pad_sequences([num_parts], maxlen=self.maxlen, padding='post', truncating='pre')
+        inp = np.asarray(inp)[0]
         in_sentence, ret_sentence = '', ''
-        ret, _ = generate(inp, self.vocab, self.maxlen, self.transformer)
+        ret = estimate(self.transformer, inp, self.vocab, self.maxlen)
 
         for n in ret.numpy():
             if n == self.vocab['<end>']: break

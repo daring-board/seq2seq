@@ -1,4 +1,5 @@
 import sys
+import glob
 import pickle
 import sentencepiece as spm
 from janome.tokenizer import Tokenizer
@@ -8,9 +9,15 @@ from janome.tokenfilter import *
 from tensorflow.keras.preprocessing import sequence
 
 if __name__ == '__main__':
-    f_name = 'full_conv.txt'
-    path = 'data/'+f_name
-    texts = [l.strip() for l in open(path, 'r', encoding='utf8') if l!='\n']
+    l = glob.glob('data/tweet/*.txt')
+    texts = []
+    for path in l:
+        ts = [l[4:].strip() for l in open(path, 'r') if l!='\n']
+        texts += ts
+    path = 'data/corpus.txt'
+    with open(path, 'w', encoding='utf8') as f:
+        for l in texts:
+            f.write(l + '\n')
 
     flag = sys.argv[1]
     print(flag)
@@ -30,7 +37,7 @@ if __name__ == '__main__':
         del tokenizer
     else:
         mpath = 'models/sentensepice'
-        template = '--input=%s --model_prefix=%s --vocab_size=20000'
+        template = '--input=%s --model_prefix=%s --vocab_size=10000'
         spm.SentencePieceTrainer.train(template%(path, mpath))
         sp = spm.SentencePieceProcessor()
         sp.load(mpath+'.model')
@@ -62,16 +69,14 @@ if __name__ == '__main__':
 
     start, sep, end = index['<start>'], index['<sep>'], index['<end>']
     maxlen = 64
-    corpus = [[start]+[index[t] for t in l]+[sep]+[index[t] for t in comp[idx+1]]+[end] for idx, l in enumerate(comp[:-2])]
-    corpus += [[start]+[index[t] for t in l]+[end] for idx, l in enumerate(comp[:-1])]
+    corpus = [[start]+[index[t] for t in l]+[end] for l in comp[0::2]][:-1]
     corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='pre')
     print(corpus[0])
     with open('data/X_corpus.pkl', 'wb') as f:
         pickle.dump(corpus, f)
 
-    maxlen = 32
-    corpus = [[start]+[index[t] for t in l]+[end] for l in comp[2:]]
-    corpus += [[start]+[index[t] for t in l]+[end] for l in comp[1:]]
+    maxlen = 64
+    corpus = [[start]+[index[t] for t in l]+[end] for l in comp[1::2]]
     corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='post')
     print(corpus[0])
     with open('data/Y_corpus.pkl', 'wb') as f:
