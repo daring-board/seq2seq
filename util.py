@@ -18,7 +18,7 @@ class ChatEngine():
         vocab_size = len(self.vocab) + 1
         num_layers = 3
         d_model = 64
-        dff = 256
+        dff = 512
         num_heads = 8
         dropout_rate = 0.1 
         self.transformer = Transformer(num_layers, d_model, num_heads, dff,

@@ -263,9 +263,9 @@ class Execution(tf.Module):
             predictions, attention_weights = self.transformer(encoder_input, output, False, enc_padding_mask, combined_mask, dec_padding_mask)
             predictions = predictions[: ,-1:, :]  # (batch_size, 1, vocab_size)
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
+            output = tf.concat([output, predicted_id], axis=-1)
             if predicted_id == vocab['<end>']:
                 return tf.squeeze(output, axis=0), attention_weights
-            output = tf.concat([output, predicted_id], axis=-1)
         return tf.squeeze(output, axis=0), attention_weights
 
 def generate(inp_sentence, vocab, maxlen, model):
