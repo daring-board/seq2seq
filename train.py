@@ -35,12 +35,12 @@ if __name__ == '__main__':
 
     vocab_size = len(vocab) + 1
     num_layers = 3
-    d_model = 64
+    d_model = 128
     dff = 512
     num_heads = 8
     dropout_rate = 0.2
     BATCH_SIZE = 32
-    EPOCHS = 200
+    EPOCHS = 300
     steps_per_epoch = int(len(X_train) / BATCH_SIZE)
 
     learning_rate = CustomSchedule(d_model, warmup_steps=(EPOCHS * steps_per_epoch) / 2)

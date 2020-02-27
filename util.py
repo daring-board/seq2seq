@@ -17,7 +17,7 @@ class ChatEngine():
 
         vocab_size = len(self.vocab) + 1
         num_layers = 3
-        d_model = 64
+        d_model = 128
         dff = 512
         num_heads = 8
         dropout_rate = 0.1 

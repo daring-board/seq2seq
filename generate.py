@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     vocab_size = len(vocab) + 1
     num_layers = 3
-    d_model = 64
+    d_model = 128
     dff = 512
     num_heads = 8
     dropout_rate = 0.2
