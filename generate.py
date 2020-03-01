@@ -77,7 +77,7 @@ if __name__ == '__main__':
         in_sentence, ret_sentence = '', ''
         inp = np.asarray(X_test[idx])
         expect = np.asarray(Y_test[idx])
-        ret = estimate(transformer, inp, vocab, maxlen)
+        ret = estimate(transformer, inp, vocab, maxlen, d_model)
         for n in inp:
             in_sentence += index[n] + ' '
             if n == vocab['<end>']: break

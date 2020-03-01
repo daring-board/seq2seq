@@ -40,7 +40,7 @@ if __name__ == '__main__':
     num_heads = 8
     dropout_rate = 0.2
     BATCH_SIZE = 32
-    EPOCHS = 200
+    EPOCHS = 300
     steps_per_epoch = int(len(X_train) / BATCH_SIZE)
 
     learning_rate = CustomSchedule(d_model, warmup_steps=(EPOCHS * steps_per_epoch) / 2)
@@ -87,13 +87,21 @@ if __name__ == '__main__':
         print ('Epoch {} Loss {:.4f} Accuracy {:.4f}'.format(epoch + 1, train_loss.result(), train_accuracy.result()))
 
         for idx in range(3):
-            in_sentence, ret_sentence = '', ''
+            in_sentence, cor_sentence, ret_sentence = '', '', ''
             inp = np.asarray(X_test[idx])
-            ret = estimate(transformer, inp, vocab, maxlen)
+            cor = np.asarray(Y_test[idx])
+            ret = estimate(transformer, inp, vocab, maxlen, d_model)
+            print('query', end=': ')
             for n in inp:
                 in_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
             print(in_sentence)
+            print('correct', end=': ')
+            for n in cor:
+                cor_sentence += index[n] + ' '
+                if n == vocab['<end>']: break
+            print(cor_sentence)
+            print('expect', end=': ')
             for n in ret.numpy():
                 ret_sentence += index[n] + ' '
                 if n == vocab['<end>']: break

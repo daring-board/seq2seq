@@ -260,16 +260,17 @@ def compute_apply_gradients(model, inp, trg, optimizer, train_loss, train_accura
     train_loss(loss)
     train_accuracy(trg_real, predict)
 
-def estimate(model, inp, vocab, maxlen, expect=None):
+def estimate(model, inp, vocab, maxlen, d_model, expect=None):
     condition_input = tf.expand_dims(inp, 0)
     decoder_input = np.asarray([vocab['<start>']])
     output = tf.expand_dims(decoder_input, 0)
 
+    eps = tf.random.normal(shape=(output.shape[0], maxlen, d_model, ))
     for i in range(maxlen):
         enc_padding_mask1, combined_mask, dec_padding_mask = create_masks(condition_input, output)
         enc_padding_mask2, _, _ = create_masks(output, output)
         masks = [enc_padding_mask1, enc_padding_mask2, combined_mask, dec_padding_mask]
-        x_logit = model.sample(condition_input, output, maxlen, masks)
+        x_logit = model.sample(condition_input, output, maxlen, masks, eps=eps)
         predictions = x_logit[: ,-1:, :]  # (batch_size, 1, vocab_size)
         predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
         output = tf.concat([output, predicted_id], axis=-1)
@@ -296,72 +297,3 @@ def create_masks(inp, tar):
     dec_target_padding_mask = create_padding_mask(tar)
     combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
     return enc_padding_mask, combined_mask, dec_padding_mask
-
-
-class Execution(tf.Module):
-    train_step_signature = [
-        tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-        tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-    ]
-
-    def __init__(self, transformer, loss_object, train_loss, train_accuracy, optimizer):
-        self.transformer = transformer
-        self.loss_object = loss_object
-        self.train_loss = train_loss
-        self.train_accuracy = train_accuracy
-        self.optimizer = optimizer
-
-    def loss_function(self, real, pred):
-        mask = tf.math.logical_not(tf.math.equal(real, 0))
-        loss_ = self.loss_object(real, pred)
-        mask = tf.cast(mask, dtype=loss_.dtype)
-        loss_ *= mask    
-        return tf.reduce_mean(loss_)
-
-    @tf.function(input_signature=train_step_signature)
-    def train_step(self, inp, tar):
-        tar_inp = tar[:, :-1]
-        tar_real = tar[:, 1:]
-        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar_inp)
-        
-        with tf.GradientTape() as tape:
-            predictions, _ = self.transformer(inp, tar_inp, 
-                                        True,
-                                        enc_padding_mask, 
-                                        combined_mask, 
-                                        dec_padding_mask)
-            loss = self.loss_function(tar_real, predictions)
-        gradients = tape.gradient(loss, self.transformer.trainable_variables)    
-        self.optimizer.apply_gradients(zip(gradients, self.transformer.trainable_variables))
-        self.train_loss(loss)
-        self.train_accuracy(tar_real, predictions)
-
-    def evaluate(self, inp_sentence, vocab, maxlen, expect=None):
-        encoder_input = tf.expand_dims(inp_sentence, 0)
-        decoder_input = np.asarray([vocab['<start>']])
-        output = tf.expand_dims(decoder_input, 0)
-            
-        for i in range(maxlen):
-            enc_padding_mask, combined_mask, dec_padding_mask = create_masks(encoder_input, output)
-            predictions, attention_weights = self.transformer(encoder_input, output, False, enc_padding_mask, combined_mask, dec_padding_mask)
-            predictions = predictions[: ,-1:, :]  # (batch_size, 1, vocab_size)
-            predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
-            if predicted_id == vocab['<end>']:
-                return tf.squeeze(output, axis=0), attention_weights
-            output = tf.concat([output, predicted_id], axis=-1)
-        return tf.squeeze(output, axis=0), attention_weights
-
-def generate(inp_sentence, vocab, maxlen, model):
-    encoder_input = tf.expand_dims(inp_sentence, 0)
-    decoder_input = np.asarray([vocab['<start>']])
-    output = tf.expand_dims(decoder_input, 0)
-        
-    for i in range(maxlen):
-        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(encoder_input, output)
-        predictions, attention_weights = model(encoder_input, output, False, enc_padding_mask, combined_mask, dec_padding_mask)
-        predictions = predictions[: ,-1:, :]  # (batch_size, 1, vocab_size)
-        predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
-        if predicted_id == vocab['<end>']:
-            return tf.squeeze(output, axis=0), attention_weights
-        output = tf.concat([output, predicted_id], axis=-1)
-    return tf.squeeze(output, axis=0), attention_weights

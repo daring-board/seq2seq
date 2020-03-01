@@ -1,6 +1,7 @@
 import sys
 import glob
 import pickle
+import neologdn
 import sentencepiece as spm
 from janome.tokenizer import Tokenizer
 from janome.analyzer import Analyzer
@@ -8,44 +9,42 @@ from janome.charfilter import *
 from janome.tokenfilter import *
 from tensorflow.keras.preprocessing import sequence
 
+def split_sentence(analyzer, l):
+    return [token for token in analyzer.analyze(l)]
+
 if __name__ == '__main__':
     l = glob.glob('data/tweet/*.txt')
     texts = []
     for path in l:
-        ts = [l[4:].strip() for l in open(path, 'r') if l!='\n']
+        ts = [l[5:].strip() if l!='\n' else l for l in open(path, 'r')]
         texts += ts
+
+    # tokenizer = Tokenizer(mmap=True)
+    tokenizer = Tokenizer()
+    char_filters = [UnicodeNormalizeCharFilter()]
+    token_filters = [LowerCaseFilter(), ExtractAttributeFilter(att='surface')]
+    analyzer = Analyzer(char_filters, tokenizer, token_filters)
     path = 'data/corpus.txt'
     with open(path, 'w', encoding='utf8') as f:
         for l in texts:
-            f.write(l + '\n')
+            l = neologdn.normalize(l)
+            l = split_sentence(analyzer, l)
+            f.write(' '.join(l) + '\n')
+    del analyzer
+    del token_filters
+    del char_filters
+    del tokenizer
 
-    flag = sys.argv[1]
-    print(flag)
-    if flag == 'janome':
-        # tokenizer = Tokenizer(mmap=True)
-        tokenizer = Tokenizer()
-        char_filters = [UnicodeNormalizeCharFilter()]
-        token_filters = [LowerCaseFilter(), ExtractAttributeFilter(att='surface')]
-        analyzer = Analyzer(char_filters, tokenizer, token_filters)
-        comp = []
-        for l in texts:
-            sn = [token for token in analyzer.analyze(l)]
-            comp.append(sn)
-        del analyzer
-        del token_filters
-        del char_filters
-        del tokenizer
-    else:
-        mpath = 'models/sentensepice'
-        template = '--input=%s --model_prefix=%s --vocab_size=10000'
-        spm.SentencePieceTrainer.train(template%(path, mpath))
-        sp = spm.SentencePieceProcessor()
-        sp.load(mpath+'.model')
+    mpath = 'models/sentensepice'
+    template = '--input=%s --model_prefix=%s --vocab_size=2000'
+    spm.SentencePieceTrainer.train(template%(path, mpath))
+    sp = spm.SentencePieceProcessor()
+    sp.load(mpath+'.model')
 
-        comp = []
-        for l in texts:
-            sn = sp.encode_as_pieces(l)
-            comp.append(sn)
+    comp = []
+    for l in texts:
+        sn = sp.encode_as_pieces(l)
+        comp.append(sn)
 
     index, count = {}, {}
     for l in comp:
