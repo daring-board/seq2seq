@@ -95,16 +95,19 @@ if __name__ == '__main__':
             for n in inp:
                 in_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
+            in_sentence = in_sentence.replace('_', '').replace(' ', '')
             print(in_sentence)
             print('correct', end=': ')
             for n in cor:
                 cor_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
+            cor_sentence = cor_sentence.replace('_', '').replace(' ', '')
             print(cor_sentence)
             print('expect', end=': ')
             for n in ret.numpy():
                 ret_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
+            ret_sentence = ret_sentence.replace('_', '').replace(' ', '')
             print(ret_sentence)
             print()
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))

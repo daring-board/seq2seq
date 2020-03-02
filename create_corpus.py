@@ -13,9 +13,9 @@ def split_sentence(analyzer, l):
     return [token for token in analyzer.analyze(l)]
 
 if __name__ == '__main__':
-    l = glob.glob('data/tweet/*.txt')
+    files = glob.glob('data/tweet/*.txt')
     texts = []
-    for path in l:
+    for path in files:
         ts = [l[5:].strip() if l!='\n' else l for l in open(path, 'r')]
         texts += ts
 
@@ -30,29 +30,37 @@ if __name__ == '__main__':
             l = neologdn.normalize(l)
             l = split_sentence(analyzer, l)
             f.write(' '.join(l) + '\n')
-    del analyzer
-    del token_filters
-    del char_filters
-    del tokenizer
 
     mpath = 'models/sentensepice'
-    template = '--input=%s --model_prefix=%s --vocab_size=2000'
+    template = '--input=%s --model_prefix=%s --vocab_size=5000'
     spm.SentencePieceTrainer.train(template%(path, mpath))
     sp = spm.SentencePieceProcessor()
     sp.load(mpath+'.model')
 
-    comp = []
+    dataset, conv = [], []
     for l in texts:
-        sn = sp.encode_as_pieces(l)
-        comp.append(sn)
+        if l != '\n':
+            l = neologdn.normalize(l)
+            l = ' '.join(split_sentence(analyzer, l))
+            sn = sp.encode_as_pieces(l)
+            conv.append(sn)
+        else:
+            dataset.append(conv)
+            conv = []
+    del analyzer
+    del token_filters
+    del char_filters
+    del tokenizer
+    print(dataset[:10])
 
     index, count = {}, {}
-    for l in comp:
-        for t in l:
-            index[t] = 1
-            if t not in count:
-                count[t] = 0
-            count[t] += 1
+    for conv in dataset:
+        for l in conv:
+            for t in l:
+                index[t] = 1
+                if t not in count:
+                    count[t] = 0
+                count[t] += 1
     for piece in ['<start>', '<end>', '<sep>']:
         index[piece] = 1
 
@@ -68,15 +76,25 @@ if __name__ == '__main__':
 
     start, sep, end = index['<start>'], index['<sep>'], index['<end>']
     maxlen = 64
-    corpus = [[start]+[index[t] for t in l]+[end] for l in comp[0::2]][:-1]
-    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='pre')
-    print(corpus[0])
+    history = []
+    for conv in dataset:
+        for idx, l in enumerate(conv[:-1]):
+            tmp = [start]
+            for i in range(idx+1):
+                tmp += [index[t] for t in conv[i]] + [sep]
+            tmp = tmp[:-1] + [end]
+            history.append(tmp)
+    history = sequence.pad_sequences(history, maxlen=maxlen, padding='post', truncating='pre')
+    print(history[1])
     with open('data/X_corpus.pkl', 'wb') as f:
-        pickle.dump(corpus, f)
+        pickle.dump(history, f)
 
     maxlen = 64
-    corpus = [[start]+[index[t] for t in l]+[end] for l in comp[1::2]]
-    corpus = sequence.pad_sequences(corpus, maxlen=maxlen, padding='post', truncating='post')
-    print(corpus[0])
+    response = []
+    for conv in dataset:
+        for idx, l in enumerate(conv[1:]):
+            response.append([start] + [index[t] for t in l] + [end])
+    response = sequence.pad_sequences(response, maxlen=maxlen, padding='post', truncating='post')
+    print(response[1])
     with open('data/Y_corpus.pkl', 'wb') as f:
-        pickle.dump(corpus, f)
+        pickle.dump(response, f)
