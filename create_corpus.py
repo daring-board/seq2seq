@@ -32,7 +32,7 @@ if __name__ == '__main__':
             f.write(' '.join(l) + '\n')
 
     mpath = 'models/sentensepice'
-    template = '--input=%s --model_prefix=%s --vocab_size=5000'
+    template = '--input=%s --model_prefix=%s --vocab_size=10000'
     spm.SentencePieceTrainer.train(template%(path, mpath))
     sp = spm.SentencePieceProcessor()
     sp.load(mpath+'.model')
@@ -75,7 +75,7 @@ if __name__ == '__main__':
         pickle.dump(count, f)
 
     start, sep, end = index['<start>'], index['<sep>'], index['<end>']
-    maxlen = 64
+    maxlen = 256
     history = []
     for conv in dataset:
         for idx, l in enumerate(conv[:-1]):
@@ -89,7 +89,7 @@ if __name__ == '__main__':
     with open('data/X_corpus.pkl', 'wb') as f:
         pickle.dump(history, f)
 
-    maxlen = 64
+    maxlen = 256
     response = []
     for conv in dataset:
         for idx, l in enumerate(conv[1:]):

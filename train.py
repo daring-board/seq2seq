@@ -33,10 +33,10 @@ if __name__ == '__main__':
     print(X_train[0])
 
     vocab_size = len(vocab) + 1
-    maxlen = 64
+    maxlen = 256
     num_layers = 3
     d_model = 128
-    dff = 256
+    dff = 512
     num_heads = 8
     dropout_rate = 0.2
     BATCH_SIZE = 32
@@ -95,19 +95,19 @@ if __name__ == '__main__':
             for n in inp:
                 in_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
-            in_sentence = in_sentence.replace('_', '').replace(' ', '')
+            in_sentence = in_sentence.replace('▁', '').replace(' ', '')
             print(in_sentence)
             print('correct', end=': ')
             for n in cor:
                 cor_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
-            cor_sentence = cor_sentence.replace('_', '').replace(' ', '')
+            cor_sentence = cor_sentence.replace('▁', '').replace(' ', '')
             print(cor_sentence)
             print('expect', end=': ')
             for n in ret.numpy():
                 ret_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
-            ret_sentence = ret_sentence.replace('_', '').replace(' ', '')
+            ret_sentence = ret_sentence.replace('▁', '').replace(' ', '')
             print(ret_sentence)
             print()
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
