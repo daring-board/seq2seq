@@ -2,6 +2,7 @@ import os
 import pickle
 import time
 import numpy as np
+import neologdn
 import tensorflow as tf
 import sentencepiece as spm
 from janome.tokenizer import Tokenizer
@@ -19,6 +20,9 @@ def checkGPU():
             print('memory growth:', tf.config.experimental.get_memory_growth(physical_devices[k]))
     else:
         print("Not enough GPU hardware devices available")
+
+def split_sentence(analyzer, l):
+    return [token for token in analyzer.analyze(l)]
 
 if __name__ == '__main__':
     checkGPU()
@@ -61,12 +65,23 @@ if __name__ == '__main__':
     sp = spm.SentencePieceProcessor()
     sp.load(mpath+'.model')
 
+    tokenizer = Tokenizer()
+    char_filters = [UnicodeNormalizeCharFilter()]
+    token_filters = [LowerCaseFilter(), ExtractAttributeFilter(att='surface')]
+    analyzer = Analyzer(char_filters, tokenizer, token_filters)
+
+    history = ['<end>']
     while True:
         print('Conversation:')
         line = input('> ')
         if not line: break
-        parts = sp.encode_as_pieces(line)
-        parts = ['<start>'] + parts + ['<end>']
+        line = neologdn.normalize(line)
+        parts = ' '.join(split_sentence(analyzer, line))
+        parts = sp.encode_as_pieces(parts)
+        if len(history) == 1:
+            parts = ['<start>'] + parts + ['<end>']
+        else:
+            parts = history + parts + ['<end>']
         num_parts = [vocab[part] for part in parts]
         inp = np.asarray(num_parts)
 
@@ -75,10 +90,17 @@ if __name__ == '__main__':
         for n in inp:
             in_sentence += index[n]
             if n == vocab['<end>']: break
-        in_sentence = in_sentence.replace('<start>', '').replace('<end>', '')
+        in_sentence = in_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
         for n in ret.numpy():
             ret_sentence += index[n]
             if n == vocab['<end>']: break
-        ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
+        ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
         print('response: %s'%ret_sentence)
         print()
+        line = neologdn.normalize(ret_sentence)
+        parts = ' '.join(split_sentence(analyzer, line))
+        parts = sp.encode_as_pieces(parts)
+        if len(history) == 1:
+            history = ['<start>'] + parts + ['<sep>']
+        else:
+            history = ['<start>'] + history + ['<sep>'] + parts + ['<sep>']

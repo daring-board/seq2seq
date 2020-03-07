@@ -2,8 +2,13 @@ import os
 import pickle
 import time
 import numpy as np
+import neologdn
 import tensorflow as tf
 import sentencepiece as spm
+from janome.tokenizer import Tokenizer
+from janome.analyzer import Analyzer
+from janome.charfilter import *
+from janome.tokenfilter import *
 
 from model import *
 
@@ -39,6 +44,12 @@ class ChatEngine():
         self.sp = spm.SentencePieceProcessor()
         self.sp.load(mpath+'.model')
 
+        tokenizer = Tokenizer()
+        char_filters = [UnicodeNormalizeCharFilter()]
+        token_filters = [LowerCaseFilter(), ExtractAttributeFilter(att='surface')]
+        self.analyzer = Analyzer(char_filters, tokenizer, token_filters)
+        self.history = ['<end>']
+
     def checkGPU(self):
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
         if len(physical_devices) > 0:
@@ -48,10 +59,18 @@ class ChatEngine():
         else:
             print("Not enough GPU hardware devices available")
 
+    def split_sentence(self, l):
+        return [token for token in self.analyzer.analyze(l)]
+
     def response(self, sentences):
         line = sentences[1]
+        line = neologdn.normalize(line)
+        line = ' '.join(self.split_sentence(line))
         parts = self.sp.encode_as_pieces(line)
-        parts = ['<start>'] + parts + ['<end>']
+        if len(self.history) == 1:
+            parts = ['<start>'] + parts + ['<end>']
+        else:
+            parts = self.history + parts + ['<end>']
         num_parts = [self.vocab[part] for part in parts]
         inp = np.asarray(num_parts)
         in_sentence, ret_sentence = '', ''
@@ -61,4 +80,11 @@ class ChatEngine():
             if n == self.vocab['<end>']: break
             ret_sentence += self.index[n]
         ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
+        line = neologdn.normalize(ret_sentence)
+        parts = ' '.join(self.split_sentence(line))
+        parts = self.sp.encode_as_pieces(parts)
+        if len(self.history) == 1:
+            self.history = ['<start>'] + parts + ['<sep>']
+        else:
+            self.history = ['<start>'] + self.history + ['<sep>'] + parts + ['<sep>']
         return ret_sentence

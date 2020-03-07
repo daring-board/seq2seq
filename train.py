@@ -88,18 +88,22 @@ if __name__ == '__main__':
                                                         train_accuracy.result()))
 
         for idx in range(3):
-            in_sentence, ret_sentence = '', ''
+            in_sentence, exp_sentence, ret_sentence = '', '', ''
             inp = np.asarray(X_test[idx])
             expect = np.asarray(Y_test[idx])
             ret, _ = execution.evaluate(inp, vocab, maxlen, expect)
             for n in inp:
                 in_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
-            print(in_sentence)
+            print(in_sentence.replace('▁', '').replace(' ', ''))
+            for n in expect:
+                exp_sentence += index[n] + ' '
+                if n == vocab['<end>']: break
+            print(exp_sentence.replace('▁', '').replace(' ', ''))
             for n in ret.numpy():
                 ret_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
-            print(ret_sentence)
+            print(ret_sentence.replace('▁', '').replace(' ', ''))
             print()
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
     tf.saved_model.save(execution, 'models/')
