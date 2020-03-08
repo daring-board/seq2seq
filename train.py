@@ -33,9 +33,8 @@ if __name__ == '__main__':
     print(X_train[0])
 
     vocab_size = len(vocab) + 1
-    maxlen = 256
-    num_layers = 3
-    d_model = 128
+    num_layers = 4
+    d_model = 256
     dff = 512
     num_heads = 8
     dropout_rate = 0.2
@@ -87,7 +86,7 @@ if __name__ == '__main__':
         print ('Epoch {} Loss {:.4f} Accuracy {:.4f}'.format(epoch + 1, train_loss.result(), train_accuracy.result()))
 
         for idx in range(3):
-            in_sentence, cor_sentence, ret_sentence = '', '', ''
+            in_sentence, exp_sentence, ret_sentence = '', '', ''
             inp = np.asarray(X_test[idx])
             cor = np.asarray(Y_test[idx])
             ret = estimate(transformer, inp, vocab, maxlen, d_model)
@@ -95,20 +94,15 @@ if __name__ == '__main__':
             for n in inp:
                 in_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
-            in_sentence = in_sentence.replace('▁', '').replace(' ', '')
-            print(in_sentence)
-            print('correct', end=': ')
-            for n in cor:
-                cor_sentence += index[n] + ' '
+            print(in_sentence.replace('▁', '').replace(' ', ''))
+            for n in expect:
+                exp_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
-            cor_sentence = cor_sentence.replace('▁', '').replace(' ', '')
-            print(cor_sentence)
-            print('expect', end=': ')
+            print(exp_sentence.replace('▁', '').replace(' ', ''))
             for n in ret.numpy():
                 ret_sentence += index[n] + ' '
                 if n == vocab['<end>']: break
-            ret_sentence = ret_sentence.replace('▁', '').replace(' ', '')
-            print(ret_sentence)
+            print(ret_sentence.replace('▁', '').replace(' ', ''))
             print()
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
     tf.saved_model.save(transformer, 'models/')

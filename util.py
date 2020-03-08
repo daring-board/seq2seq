@@ -2,6 +2,7 @@ import os
 import pickle
 import time
 import numpy as np
+import neologdn
 import tensorflow as tf
 import neologdn
 import sentencepiece as spm
@@ -9,7 +10,6 @@ from janome.tokenizer import Tokenizer
 from janome.analyzer import Analyzer
 from janome.charfilter import *
 from janome.tokenfilter import *
-from tensorflow.keras.preprocessing import sequence
 
 from model import *
 
@@ -21,15 +21,12 @@ class ChatEngine():
         self.vocab = {v: k for k, v in self.index.items()}
 
         vocab_size = len(self.vocab) + 1
-        self.maxlen = 64
-        num_layers = 3
-        d_model = 128
-        dff = 256
+        num_layers = 4
+        d_model = 256
+        dff = 512
         num_heads = 8
         dropout_rate = 0.2
-        self.d_model = d_model
-
-        self.transformer = TransformerVAE(num_layers, d_model, num_heads, dff,
+        self.transformer = Transformer(num_layers, d_model, num_heads, dff,
                           vocab_size, vocab_size, 
                           pe_input=vocab_size, 
                           pe_target=vocab_size,
@@ -51,9 +48,7 @@ class ChatEngine():
         char_filters = [UnicodeNormalizeCharFilter()]
         token_filters = [LowerCaseFilter(), ExtractAttributeFilter(att='surface')]
         self.analyzer = Analyzer(char_filters, tokenizer, token_filters)
-
-    def split_sentence(self, analyzer, l):
-        return [token for token in analyzer.analyze(l)]
+        self.history = ['<end>']
 
     def checkGPU(self):
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
@@ -64,15 +59,18 @@ class ChatEngine():
         else:
             print("Not enough GPU hardware devices available")
 
+    def split_sentence(self, l):
+        return [token for token in self.analyzer.analyze(l)]
+
     def response(self, sentences):
-        line1, line2 = sentences[0], sentences[1]
-        line1 = neologdn.normalize(line1)
-        line2 = neologdn.normalize(line2)
-        line1 = self.split_sentence(analyzer, line1)
-        line2 = self.split_sentence(analyzer, line2)
-        parts1 = self.sp.encode_as_pieces(line1)
-        parts2 = self.sp.encode_as_pieces(line2)
-        parts = ['<start>'] + parts1 + ['<sep>'] + parts2 + ['<end>']
+        line = sentences[1]
+        line = neologdn.normalize(line)
+        line = ' '.join(self.split_sentence(line))
+        parts = self.sp.encode_as_pieces(line)
+        if len(self.history) == 1:
+            parts = ['<start>'] + parts + ['<end>']
+        else:
+            parts = self.history + parts + ['<end>']
         num_parts = [self.vocab[part] for part in parts]
         inp = sequence.pad_sequences([num_parts], maxlen=self.maxlen, padding='post', truncating='pre')
         inp = np.asarray(inp)[0]
@@ -83,4 +81,11 @@ class ChatEngine():
             if n == self.vocab['<end>']: break
             ret_sentence += self.index[n]
         ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '')
+        line = neologdn.normalize(ret_sentence)
+        parts = ' '.join(self.split_sentence(line))
+        parts = self.sp.encode_as_pieces(parts)
+        if len(self.history) == 1:
+            self.history = ['<start>'] + parts + ['<sep>']
+        else:
+            self.history = ['<start>'] + self.history + ['<sep>'] + parts + ['<sep>']
         return ret_sentence

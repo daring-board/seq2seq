@@ -89,7 +89,7 @@ if __name__ == '__main__':
     with open('data/X_corpus.pkl', 'wb') as f:
         pickle.dump(history, f)
 
-    maxlen = 256
+    maxlen = 128
     response = []
     for conv in dataset:
         for idx, l in enumerate(conv[1:]):

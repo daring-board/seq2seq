@@ -3,6 +3,7 @@ import pickle
 import time
 import random
 import numpy as np
+import neologdn
 import tensorflow as tf
 import sentencepiece as spm
 
@@ -16,6 +17,9 @@ def checkGPU():
             print('memory growth:', tf.config.experimental.get_memory_growth(physical_devices[k]))
     else:
         print("Not enough GPU hardware devices available")
+
+def split_sentence(analyzer, l):
+    return [token for token in analyzer.analyze(l)]
 
 if __name__ == '__main__':
     checkGPU()
@@ -44,10 +48,9 @@ if __name__ == '__main__':
     print(X_train[0])
 
     vocab_size = len(vocab) + 1
-    maxlen = 64
-    num_layers = 3
-    d_model = 128
-    dff = 256
+    num_layers = 4
+    d_model = 256
+    dff = 512
     num_heads = 8
     dropout_rate = 0.2
 
@@ -71,6 +74,31 @@ if __name__ == '__main__':
     if ckpt_manager.latest_checkpoint:
         ckpt.restore(ckpt_manager.latest_checkpoint)
         print ('Latest checkpoint restored!!')
+    
+
+    mpath = 'models/sentensepice'
+    sp = spm.SentencePieceProcessor()
+    sp.load(mpath+'.model')
+
+    tokenizer = Tokenizer()
+    char_filters = [UnicodeNormalizeCharFilter()]
+    token_filters = [LowerCaseFilter(), ExtractAttributeFilter(att='surface')]
+    analyzer = Analyzer(char_filters, tokenizer, token_filters)
+
+    history = ['<end>']
+    while True:
+        print('Conversation:')
+        line = input('> ')
+        if not line: break
+        line = neologdn.normalize(line)
+        parts = ' '.join(split_sentence(analyzer, line))
+        parts = sp.encode_as_pieces(parts)
+        if len(history) == 1:
+            parts = ['<start>'] + parts + ['<end>']
+        else:
+            parts = history + parts + ['<end>']
+        num_parts = [vocab[part] for part in parts]
+        inp = np.asarray(num_parts)
 
     start = time.time()
     for idx in range(3):
@@ -81,10 +109,17 @@ if __name__ == '__main__':
         for n in inp:
             in_sentence += index[n] + ' '
             if n == vocab['<end>']: break
-        print(in_sentence)
+        in_sentence = in_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
         for n in ret.numpy():
             ret_sentence += index[n] + ' '
             if n == vocab['<end>']: break
-        print(ret_sentence)
+        ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
+        print('response: %s'%ret_sentence)
         print()
-    print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
+        line = neologdn.normalize(ret_sentence)
+        parts = ' '.join(split_sentence(analyzer, line))
+        parts = sp.encode_as_pieces(parts)
+        if len(history) == 1:
+            history = ['<start>'] + parts + ['<sep>']
+        else:
+            history = ['<start>'] + history + ['<sep>'] + parts + ['<sep>']
