@@ -14,8 +14,8 @@ export default{
   },
   mounted: function(){
     let data = {
-      'uttence1': '',
-      'uttence2': ''
+      'history': [],
+      'uttence': ''
     }
     this.process(data)
   },
@@ -24,16 +24,18 @@ export default{
       var chat = this.chat['chatui']
       console.log(chat)
       let input = await chat.userInput('text')
-      data['uttence2'] = input.text
+      data['uttence'] = input.text
       console.log(data)
       let headers = {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        "Access-Control-Allow-Origin": "*"
       }
+      // axios.post('https://m2vajnoqb5.execute-api.ap-northeast-1.amazonaws.com/dev/talk2', data, headers).then(res => {
       axios.post('http://localhost:5000/query', data, headers).then(res => {
         console.log(res.data)
-        chat.addEntry(res.data).readable
+        chat.addEntry(res.data.response).readable
         console.log("done")
-        data['uttence1'] = res.data
+        data['history'] = res.data.history
         this.process(data)
       })
     }

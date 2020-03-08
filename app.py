@@ -15,11 +15,11 @@ def hello():
 def query():
     data = request.get_json()
     print(data)
-    lines = data['uttence1'], data['uttence2']
-    res = app.config['engine'].response(lines)
-    res = res.replace('▁', '')
+    lines = data['history'], data['uttence']
+    res, history = app.config['engine'].response(lines)
+    print(history)
     print(res)
-    return jsonify(res)
+    return jsonify({'response': res, 'history': history})
  
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)
