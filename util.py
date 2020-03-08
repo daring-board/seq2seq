@@ -21,11 +21,11 @@ class ChatEngine():
         self.vocab = {v: k for k, v in self.index.items()}
 
         vocab_size = len(self.vocab) + 1
-        num_layers = 3
-        d_model = 128
+        num_layers = 4
+        d_model = 256
         dff = 512
         num_heads = 8
-        dropout_rate = 0.1 
+        dropout_rate = 0.2
         self.transformer = Transformer(num_layers, d_model, num_heads, dff,
                           vocab_size, vocab_size, 
                           pe_input=vocab_size, 

@@ -34,8 +34,8 @@ if __name__ == '__main__':
     print(X_train[0])
 
     vocab_size = len(vocab) + 1
-    num_layers = 3
-    d_model = 128
+    num_layers = 4
+    d_model = 256
     dff = 512
     num_heads = 8
     dropout_rate = 0.2
