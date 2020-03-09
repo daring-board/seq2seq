@@ -9,6 +9,7 @@ from janome.tokenizer import Tokenizer
 from janome.analyzer import Analyzer
 from janome.charfilter import *
 from janome.tokenfilter import *
+from tensorflow.keras.preprocessing import sequence
 
 from model import *
 
@@ -71,6 +72,9 @@ if __name__ == '__main__':
     analyzer = Analyzer(char_filters, tokenizer, token_filters)
 
     history = ['<end>']
+    expect = []
+    train_loss.reset_states()
+    train_accuracy.reset_states()
     while True:
         print('Conversation:')
         line = input('> ')
@@ -78,10 +82,20 @@ if __name__ == '__main__':
         line = neologdn.normalize(line)
         parts = ' '.join(split_sentence(analyzer, line))
         parts = sp.encode_as_pieces(parts)
-        if len(history) == 1:
+        is_first = True if len(history) == 1 else False
+        if is_first:
             parts = ['<start>'] + parts + ['<end>']
         else:
             parts = history + parts + ['<end>']
+
+            hi_sentence = ''
+            num_parts = [vocab[part] for part in parts]
+            for n in num_parts:
+                hi_sentence += index[n]
+                if n == vocab['<end>']: break
+            hi_sentence = hi_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
+            print('history: %s'%hi_sentence)
+
         num_parts = [vocab[part] for part in parts]
         inp = np.asarray(num_parts)
 
@@ -96,11 +110,34 @@ if __name__ == '__main__':
             if n == vocab['<end>']: break
         ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
         print('response: %s'%ret_sentence)
-        print()
-        line = neologdn.normalize(ret_sentence)
-        parts = ' '.join(split_sentence(analyzer, line))
-        parts = sp.encode_as_pieces(parts)
-        if len(history) == 1:
+
+        if is_first:
             history = ['<start>'] + parts + ['<sep>']
         else:
+            line = neologdn.normalize(ret_sentence)
+            parts = ' '.join(split_sentence(analyzer, line))
+            parts = sp.encode_as_pieces(parts)
             history = ['<start>'] + history + ['<sep>'] + parts + ['<sep>']
+        
+        inp_maxlen = 256
+        exp_maxlen = 128
+        inp = history[:-1] + ['<end>']
+        num_parts = [vocab[part] for part in parts]
+        inp = np.asarray(num_parts)
+        if not is_first:
+            inp = sequence.pad_sequences([inp], maxlen=inp_maxlen, padding='post', truncating='pre')
+            expect = sequence.pad_sequences([expect.numpy()], maxlen=exp_maxlen, padding='post', truncating='post')
+            execution.train_step(inp, np.asarray(expect))
+            ckpt_save_path = ckpt_manager.save()
+            print ('Loss {:.4f} Accuracy {:.4f}'.format(train_loss.result(), train_accuracy.result()))
+        else:
+            inp = sequence.pad_sequences([inp], maxlen=inp_maxlen, padding='post', truncating='pre')
+        
+        expect, _ = execution.evaluate(inp[0], vocab, maxlen)
+        exp_sentence = ''
+        for n in expect.numpy():
+            exp_sentence += index[n]
+            if n == vocab['<end>']: break
+        exp_sentence = exp_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
+        print('expect: %s'%exp_sentence)
+        print()

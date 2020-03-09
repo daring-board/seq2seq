@@ -8,7 +8,7 @@ import tensorflow as tf
 from model import *
 
 if __name__ == '__main__':
-    maxlen = 32
+    maxlen = 128
     with open('data/X_corpus.pkl', 'rb') as f:
         X_corpus = pickle.load(f)
     with open('data/Y_corpus.pkl', 'rb') as f:
