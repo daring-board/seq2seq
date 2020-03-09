@@ -86,6 +86,6 @@ class ChatEngine():
             if n == self.vocab['<end>']: break
             ret_sentence += self.index[n]
         ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
-        history.append(line)
+        history.append(line.replace(' ', ''))
         history.append(ret_sentence)
         return ret_sentence, history[-5:]
