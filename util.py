@@ -63,7 +63,7 @@ class ChatEngine():
 
     def split_line(self, line):
         line = neologdn.normalize(line)
-        parts = ' '.join(self.split_sentence(self.analyzer, line))
+        parts = ' '.join(self.split_sentence(line))
         parts = self.sp.encode_as_pieces(parts)
         return parts
 
@@ -75,23 +75,27 @@ class ChatEngine():
         sentence = sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
         return sentence
 
+    def history2parts(self, history):
+        parts = ['<start>']
+        for l in history:
+            tmp = self.split_line(l)
+            parts += tmp + ['<sep>']
+        parts = parts[:-1] + ['<end>']
+        return parts
+
     def response(self, sentences):
         history, line = sentences[0], sentences[1]
-        parts = self.split_line(line)
-        if len(history) != 0:
-            h_parts = ['<start>']
-            for l in history:
-                h_parts += self.split_line(l) + ['<sep>']
-            parts = h_parts + parts + ['<end>']
-        else:
-            parts = ['<start>'] + parts + ['<end>']
-        print(parts)
+
+        history += [line]
+        hi_sentence = '\n  '.join(history)
+        print('history: %s'%hi_sentence)
+
+        parts = self.history2parts(history)
         num_parts = [self.vocab[part] for part in parts]
         inp = np.asarray(num_parts)
         in_sentence, ret_sentence = '', ''
         ret, _ = generate(inp, self.vocab, self.maxlen, self.transformer)
 
-        ret_sentence = join_parts(ret.numpy())
-        history.append(line)
-        history.append(ret_sentence)
+        ret_sentence = self.join_parts(ret.numpy())
+        history += [ret_sentence]
         return ret_sentence, history[-5:]
