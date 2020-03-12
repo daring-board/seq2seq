@@ -257,16 +257,19 @@ class Execution(tf.Module):
         encoder_input = tf.expand_dims(inp_sentence, 0)
         decoder_input = np.asarray([vocab['<start>']])
         output = tf.expand_dims(decoder_input, 0)
-            
+        likelyhood = []
+
         for i in range(maxlen):
             enc_padding_mask, combined_mask, dec_padding_mask = create_masks(encoder_input, output)
             predictions, attention_weights = self.transformer(encoder_input, output, False, enc_padding_mask, combined_mask, dec_padding_mask)
             predictions = predictions[: ,-1:, :]  # (batch_size, 1, vocab_size)
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
             output = tf.concat([output, predicted_id], axis=-1)
+
+            likelyhood.append(np.max(predictions.numpy()[0]))
             if predicted_id == vocab['<end>']:
                 break
-        return tf.squeeze(output, axis=0), attention_weights
+        return tf.squeeze(output, axis=0), attention_weights, likelyhood
 
 def generate(inp_sentence, vocab, maxlen, model):
     encoder_input = tf.expand_dims(inp_sentence, 0)

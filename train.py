@@ -7,6 +7,14 @@ import tensorflow as tf
 
 from model import *
 
+def join_parts(parts, index, vocab):
+    sentence = ''
+    for n in parts:
+        sentence += index[n]
+        if n == vocab['<end>']: break
+    sentence = sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
+    return sentence
+
 if __name__ == '__main__':
     maxlen = 128
     with open('data/X_corpus.pkl', 'rb') as f:
@@ -34,13 +42,13 @@ if __name__ == '__main__':
     print(X_train[0])
 
     vocab_size = len(vocab) + 1
-    num_layers = 4
-    d_model = 256
-    dff = 512
-    num_heads = 8
+    num_layers = 3
+    d_model = 512
+    dff = 128
+    num_heads = 32
     dropout_rate = 0.2
     BATCH_SIZE = 32
-    EPOCHS = 300
+    EPOCHS = 100
     steps_per_epoch = int(len(X_train) / BATCH_SIZE)
 
     learning_rate = CustomSchedule(d_model, warmup_steps=(EPOCHS * steps_per_epoch) / 2)
@@ -88,22 +96,16 @@ if __name__ == '__main__':
                                                         train_accuracy.result()))
 
         for idx in range(3):
-            in_sentence, exp_sentence, ret_sentence = '', '', ''
             inp = np.asarray(X_test[idx])
             expect = np.asarray(Y_test[idx])
-            ret, _ = execution.evaluate(inp, vocab, maxlen, expect)
-            for n in inp:
-                in_sentence += index[n] + ' '
-                if n == vocab['<end>']: break
-            print(in_sentence.replace('▁', '').replace(' ', ''))
-            for n in expect:
-                exp_sentence += index[n] + ' '
-                if n == vocab['<end>']: break
-            print(exp_sentence.replace('▁', '').replace(' ', ''))
-            for n in ret.numpy():
-                ret_sentence += index[n] + ' '
-                if n == vocab['<end>']: break
-            print(ret_sentence.replace('▁', '').replace(' ', ''))
+            ret, _, lh = execution.evaluate(inp, vocab, maxlen, expect)
+            in_sentence = join_parts(inp, index, vocab)
+            print('history: %s'%in_sentence)
+            exp_sentence = join_parts(expect, index, vocab)
+            print('expect: %s'%exp_sentence)
+            ret_sentence = join_parts(ret.numpy(), index, vocab)
+            print('response: %s'%ret_sentence)
+            print(np.mean(lh))
             print()
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
     tf.saved_model.save(execution, 'models/')

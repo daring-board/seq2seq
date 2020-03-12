@@ -25,6 +25,28 @@ def checkGPU():
 def split_sentence(analyzer, l):
     return [token for token in analyzer.analyze(l)]
 
+def split_line(line, analyzer, sp):
+    line = neologdn.normalize(line)
+    parts = ' '.join(split_sentence(analyzer, line))
+    parts = sp.encode_as_pieces(parts)
+    return parts
+
+def join_parts(parts, index, vocab):
+    sentence = ''
+    for n in parts:
+        sentence += index[n]
+        if n == vocab['<end>']: break
+    sentence = sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
+    return sentence
+
+def history2parts(history, analyzer, sp):
+    parts = ['<start>']
+    for l in history:
+        tmp = split_line(l, analyzer, sp)
+        parts += tmp + ['<sep>']
+    parts = parts[:-1] + ['<end>']
+    return parts
+
 if __name__ == '__main__':
     checkGPU()
     maxlen = 128
@@ -33,14 +55,15 @@ if __name__ == '__main__':
     vocab = {v: k for k, v in index.items()}
 
     vocab_size = len(vocab) + 1
-    num_layers = 4
-    d_model = 256
-    dff = 512
-    num_heads = 8
+    num_layers = 3
+    d_model = 512
+    dff = 128
+    num_heads = 32
     dropout_rate = 0.2
 
-    learning_rate = CustomSchedule(d_model)
-    optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+    # learning_rate = CustomSchedule(d_model)
+    # optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+    optimizer = tf.keras.optimizers.RMSprop(learning_rate=0.0001, rho=0.9, momentum=0.0, epsilon=1e-07)
 
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
     train_loss = tf.keras.metrics.Mean(name='train_loss')
@@ -71,73 +94,51 @@ if __name__ == '__main__':
     token_filters = [LowerCaseFilter(), ExtractAttributeFilter(att='surface')]
     analyzer = Analyzer(char_filters, tokenizer, token_filters)
 
-    history = ['<end>']
+    history = []
     expect = []
     train_loss.reset_states()
     train_accuracy.reset_states()
+    inp_maxlen, exp_maxlen, turn = 256, 128, 6
     while True:
         print('Conversation:')
         line = input('> ')
         if not line: break
-        line = neologdn.normalize(line)
-        parts = ' '.join(split_sentence(analyzer, line))
-        parts = sp.encode_as_pieces(parts)
+        history += [line]
         is_first = True if len(history) == 1 else False
-        if is_first:
-            parts = ['<start>'] + parts + ['<end>']
-        else:
-            parts = history + parts + ['<end>']
+        hi_sentence = '\n  '.join(history)
+        print('history: %s'%hi_sentence)
 
-            hi_sentence = ''
-            num_parts = [vocab[part] for part in parts]
-            for n in num_parts:
-                hi_sentence += index[n]
-                if n == vocab['<end>']: break
-            hi_sentence = hi_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
-            print('history: %s'%hi_sentence)
-
+        parts = history2parts(history, analyzer, sp)
         num_parts = [vocab[part] for part in parts]
         inp = np.asarray(num_parts)
 
-        in_sentence, ret_sentence = '', ''
-        ret, _ = execution.evaluate(inp, vocab, maxlen)
-        for n in inp:
-            in_sentence += index[n]
-            if n == vocab['<end>']: break
-        in_sentence = in_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
-        for n in ret.numpy():
-            ret_sentence += index[n]
-            if n == vocab['<end>']: break
-        ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
+        ret, _, lh = execution.evaluate(inp, vocab, maxlen)
+        in_sentence = join_parts(inp, index, vocab)
+        ret_sentence = join_parts(ret.numpy(), index, vocab)
         print('response: %s'%ret_sentence)
+        print(np.mean(lh))
 
-        if is_first:
-            history = ['<start>'] + parts + ['<sep>']
-        else:
-            line = neologdn.normalize(ret_sentence)
-            parts = ' '.join(split_sentence(analyzer, line))
-            parts = sp.encode_as_pieces(parts)
-            history = ['<start>'] + history + ['<sep>'] + parts + ['<sep>']
+        history += [ret_sentence]
+        if len(history) >= turn:
+            history = history[-turn:]
+        parts = history2parts(history, analyzer, sp)
+        print(parts)
         
-        inp_maxlen = 256
-        exp_maxlen = 128
-        inp = history[:-1] + ['<end>']
+        parts = history2parts(history[:-2], analyzer, sp)
         num_parts = [vocab[part] for part in parts]
         inp = np.asarray(num_parts)
         if not is_first:
+            print('入力データ：\n  %s'%'\n  '.join(history[:-2]))
+            print('予測対象：\n  %s'%line)
+            parts = split_line(line, analyzer, sp)
+            num_parts = [vocab[part] for part in parts]
+            expect = np.asarray(num_parts)
+
             inp = sequence.pad_sequences([inp], maxlen=inp_maxlen, padding='post', truncating='pre')
-            expect = sequence.pad_sequences([expect.numpy()], maxlen=exp_maxlen, padding='post', truncating='post')
+            expect = sequence.pad_sequences([expect], maxlen=exp_maxlen, padding='post', truncating='post')
             execution.train_step(inp, np.asarray(expect))
             ckpt_save_path = ckpt_manager.save()
             print ('Loss {:.4f} Accuracy {:.4f}'.format(train_loss.result(), train_accuracy.result()))
         else:
             inp = sequence.pad_sequences([inp], maxlen=inp_maxlen, padding='post', truncating='pre')
-        
-        expect, _ = execution.evaluate(inp[0], vocab, maxlen)
-        exp_sentence = ''
-        for n in expect.numpy():
-            exp_sentence += index[n]
-            if n == vocab['<end>']: break
-        exp_sentence = exp_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
-        print('expect: %s'%exp_sentence)
         print()

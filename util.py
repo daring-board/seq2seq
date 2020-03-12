@@ -21,10 +21,10 @@ class ChatEngine():
         self.vocab = {v: k for k, v in self.index.items()}
 
         vocab_size = len(self.vocab) + 1
-        num_layers = 4
-        d_model = 256
-        dff = 512
-        num_heads = 8
+        num_layers = 3
+        d_model = 512
+        dff = 128
+        num_heads = 32
         dropout_rate = 0.2
         self.transformer = Transformer(num_layers, d_model, num_heads, dff,
                           vocab_size, vocab_size, 
@@ -61,18 +61,27 @@ class ChatEngine():
     def split_sentence(self, l):
         return [token for token in self.analyzer.analyze(l)]
 
+    def split_line(self, line):
+        line = neologdn.normalize(line)
+        parts = ' '.join(self.split_sentence(self.analyzer, line))
+        parts = self.sp.encode_as_pieces(parts)
+        return parts
+
+    def join_parts(self, parts):
+        sentence = ''
+        for n in parts:
+            sentence += self.index[n]
+            if n == self.vocab['<end>']: break
+        sentence = sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
+        return sentence
+
     def response(self, sentences):
         history, line = sentences[0], sentences[1]
-        line = neologdn.normalize(line)
-        line = ' '.join(self.split_sentence(line))
-        parts = self.sp.encode_as_pieces(line)
+        parts = self.split_line(line)
         if len(history) != 0:
             h_parts = ['<start>']
             for l in history:
-                l = neologdn.normalize(l)
-                l = ' '.join(self.split_sentence(l))
-                tmp = self.sp.encode_as_pieces(l)
-                h_parts += tmp + ['<sep>']
+                h_parts += self.split_line(l) + ['<sep>']
             parts = h_parts + parts + ['<end>']
         else:
             parts = ['<start>'] + parts + ['<end>']
@@ -82,10 +91,7 @@ class ChatEngine():
         in_sentence, ret_sentence = '', ''
         ret, _ = generate(inp, self.vocab, self.maxlen, self.transformer)
 
-        for n in ret.numpy():
-            if n == self.vocab['<end>']: break
-            ret_sentence += self.index[n]
-        ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
-        history.append(line.replace(' ', ''))
+        ret_sentence = join_parts(ret.numpy())
+        history.append(line)
         history.append(ret_sentence)
         return ret_sentence, history[-5:]

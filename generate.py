@@ -24,6 +24,28 @@ def checkGPU():
 def split_sentence(analyzer, l):
     return [token for token in analyzer.analyze(l)]
 
+def split_line(line, analyzer, sp):
+    line = neologdn.normalize(line)
+    parts = ' '.join(split_sentence(analyzer, line))
+    parts = sp.encode_as_pieces(parts)
+    return parts
+
+def join_parts(parts, index, vocab):
+    sentence = ''
+    for n in parts:
+        sentence += index[n]
+        if n == vocab['<end>']: break
+    sentence = sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
+    return sentence
+
+def history2parts(history, analyzer, sp):
+    parts = ['<start>']
+    for l in history:
+        tmp = split_line(l, analyzer, sp)
+        parts += tmp + ['<sep>']
+    parts = parts[:-1] + ['<end>']
+    return parts
+
 if __name__ == '__main__':
     checkGPU()
     maxlen = 128
@@ -32,10 +54,10 @@ if __name__ == '__main__':
     vocab = {v: k for k, v in index.items()}
 
     vocab_size = len(vocab) + 1
-    num_layers = 4
-    d_model = 256
-    dff = 512
-    num_heads = 8
+    num_layers = 3
+    d_model = 512
+    dff = 128
+    num_heads = 32
     dropout_rate = 0.2
 
     learning_rate = CustomSchedule(d_model)
@@ -60,7 +82,6 @@ if __name__ == '__main__':
         ckpt.restore(ckpt_manager.latest_checkpoint)
         print ('Latest checkpoint restored!!')
     
-
     mpath = 'models/sentensepice'
     sp = spm.SentencePieceProcessor()
     sp.load(mpath+'.model')
@@ -70,37 +91,27 @@ if __name__ == '__main__':
     token_filters = [LowerCaseFilter(), ExtractAttributeFilter(att='surface')]
     analyzer = Analyzer(char_filters, tokenizer, token_filters)
 
-    history = ['<end>']
+    history, turn = [], 6
     while True:
         print('Conversation:')
         line = input('> ')
         if not line: break
-        line = neologdn.normalize(line)
-        parts = ' '.join(split_sentence(analyzer, line))
-        parts = sp.encode_as_pieces(parts)
-        if len(history) == 1:
-            parts = ['<start>'] + parts + ['<end>']
-        else:
-            parts = history + parts + ['<end>']
+
+        history += [line]
+        hi_sentence = '\n  '.join(history)
+        print('history: %s'%hi_sentence)
+
+        parts = history2parts(history, analyzer, sp)
         num_parts = [vocab[part] for part in parts]
         inp = np.asarray(num_parts)
 
-        in_sentence, ret_sentence = '', ''
-        ret, _ = execution.evaluate(inp, vocab, maxlen)
-        for n in inp:
-            in_sentence += index[n]
-            if n == vocab['<end>']: break
-        in_sentence = in_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
-        for n in ret.numpy():
-            ret_sentence += index[n]
-            if n == vocab['<end>']: break
-        ret_sentence = ret_sentence.replace('<start>', '').replace('<end>', '').replace('▁', '').replace(' ', '')
+        ret, _, lh = execution.evaluate(inp, vocab, maxlen)
+        in_sentence = join_parts(inp, index, vocab)
+        ret_sentence = join_parts(ret.numpy(), index, vocab)
+        print(np.mean(lh))
         print('response: %s'%ret_sentence)
         print()
-        line = neologdn.normalize(ret_sentence)
-        parts = ' '.join(split_sentence(analyzer, line))
-        parts = sp.encode_as_pieces(parts)
-        if len(history) == 1:
-            history = ['<start>'] + parts + ['<sep>']
-        else:
-            history = ['<start>'] + history + ['<sep>'] + parts + ['<sep>']
+
+        history += [ret_sentence]
+        if len(history) >= turn:
+            history = history[-turn:]
